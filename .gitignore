@@ -17,6 +17,8 @@ coverage
 # logs
 logs
 _.log
+*.log
+dev.log
 report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 
 # dotenv environment variable files

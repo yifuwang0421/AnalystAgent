@@ -12,6 +12,10 @@
 
 import type { LoadedSource, FolderSourceConfig } from './types.ts';
 
+const DOCS_MCP_URL = typeof process !== 'undefined'
+  ? process.env.ANALYST_AGENT_DOCS_MCP_URL ?? ''
+  : '';
+
 /**
  * Get all built-in sources for a workspace.
  *
@@ -44,7 +48,7 @@ export function getDocsSource(workspaceId: string, workspaceRootPath: string): L
     type: 'mcp',
     mcp: {
       transport: 'http',
-      url: 'https://agents.craft.do/docs/mcp',
+      url: DOCS_MCP_URL,
       authType: 'none',
     },
     tagline: 'Search Analyst Agent documentation and source setup guides',

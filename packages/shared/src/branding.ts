@@ -15,4 +15,6 @@ export const CRAFT_LOGO = [
 export const CRAFT_LOGO_HTML = CRAFT_LOGO.map((line) => line.trimEnd()).join('\n');
 
 /** Session viewer base URL */
-export const VIEWER_URL = 'https://agents.craft.do';
+export const VIEWER_URL = typeof process !== 'undefined'
+  ? process.env.ANALYST_AGENT_VIEWER_URL ?? 'https://github.com/yifuwang0421/AnalystAgent'
+  : 'https://github.com/yifuwang0421/AnalystAgent';

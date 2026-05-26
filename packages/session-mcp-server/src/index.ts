@@ -272,7 +272,7 @@ function createSessionTools(includeDeveloperFeedback: boolean): Tool[] {
 // Analyst Agent Docs Upstream Proxy
 // ============================================================
 
-const DOCS_MCP_URL = 'https://agents.craft.do/docs/mcp';
+const DOCS_MCP_URL = process.env.ANALYST_AGENT_DOCS_MCP_URL ?? '';
 
 /** Cached upstream client + tool list */
 let docsClient: Client | null = null;
@@ -283,6 +283,13 @@ let docsTools: Tool[] = [];
  * Falls back gracefully if the server is unreachable (tools will just be empty).
  */
 async function connectDocsUpstream(): Promise<void> {
+  if (!DOCS_MCP_URL) {
+    console.error('Analyst Agent Docs proxy disabled: ANALYST_AGENT_DOCS_MCP_URL is not configured');
+    docsClient = null;
+    docsTools = [];
+    return;
+  }
+
   try {
     const client = new Client(
       { name: 'craft-agent-session-proxy', version: '1.0.0' },

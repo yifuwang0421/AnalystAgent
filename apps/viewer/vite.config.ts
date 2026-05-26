@@ -30,9 +30,10 @@ export default defineConfig({
     port: 5174, // Different from Electron dev server
     open: true,
     proxy: {
-      // Proxy API requests to production R2 during local dev
+      // Proxy API requests to a hosted viewer backend during local dev.
+      // Set ANALYST_AGENT_VIEWER_ORIGIN when running a deployed viewer.
       '/s/api': {
-        target: 'https://agents.craft.do',
+        target: process.env.ANALYST_AGENT_VIEWER_ORIGIN || 'http://127.0.0.1:9100',
         changeOrigin: true,
         secure: true,
       },

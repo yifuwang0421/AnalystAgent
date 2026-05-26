@@ -15,7 +15,7 @@ We expect all participants to:
 
 ## Enforcement
 
-Instances of unacceptable behavior may be reported to: conduct@craft.do
+Instances of unacceptable behavior may be reported through a private GitHub security advisory or a maintainer-designated contact channel for this repository.
 
 All complaints will be reviewed and investigated promptly and fairly.
 

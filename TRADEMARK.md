@@ -1,15 +1,13 @@
 # Trademark Policy
 
-This trademark policy governs the use of the "Craft" and "Analyst Agent" names, logos, and branding in connection with the Analyst Agent open source project.
+This trademark policy explains how this repository treats the "Craft" and "Analyst Agent" names, logos, and branding.
 
 ## Trademarks
 
-The following are trademarks of Craft Docs Ltd.:
+The Craft name and related upstream branding belong to their respective owners. Analyst Agent is an independent project based on the Craft Agent / Craft Agents OSS codebase.
 
-- **Craft** (word mark)
-- **Analyst Agent** (word mark)
-- The Analyst Agent logo and icon
-- The Analyst Agent logo and icon
+- **Craft** and upstream Craft Agent marks
+- **Analyst Agent** project name and repository branding
 
 ## What You Can Do
 
@@ -25,8 +23,8 @@ The Analyst Agent source code is licensed under the Apache License 2.0. You are 
 
 You may make accurate, factual statements about your relationship to the project:
 
+- "Based on Craft Agent / Craft Agents OSS"
 - "Based on Analyst Agent"
-- "Built with Analyst Agent technology"
 - "Compatible with Analyst Agent"
 - "Fork of Analyst Agent"
 
@@ -36,31 +34,31 @@ Contributors to the official Analyst Agent repository may use the trademarks whe
 
 ## What You Cannot Do
 
-### Use Craft Branding for Forks
+### Use Upstream Branding for Forks
 
 If you create a fork or derivative work, you **must**:
 
 - Choose a different name that does not include "Craft"
 - Remove or replace all Analyst Agent logos and icons
-- Update the bundle identifier (e.g., `com.lukilabs.craft-agent`) to your own
+- Update the bundle identifier to your own
 - Remove references to `craft.do` domains unless connecting to official Craft services
 
 ### Imply Official Endorsement
 
 You may not:
 
-- Use "Craft" or "Analyst Agent" as your product name
+- Use "Craft" or "Analyst Agent" as your product name in a way that creates confusion
 - Use the Analyst Agent logo as your application icon
 - Suggest that your fork is the official version
-- Imply that Craft Docs Ltd. or Craft endorses your product
+- Imply that Craft Docs Ltd., Craft, or this repository endorses your product
 
 ### Create Confusion
 
 You may not use the trademarks in any way that:
 
-- Suggests your product is created by or affiliated with Craft Docs Ltd.
-- Could cause confusion between your product and the official Analyst Agent
-- Disparages Craft Docs Ltd. or the Analyst Agent project
+- Suggests your product is created by or affiliated with Craft Docs Ltd. or this repository
+- Could cause confusion between your product and Analyst Agent
+- Disparages upstream Craft Agent maintainers or the Analyst Agent project
 
 ## Branding Locations
 
@@ -89,7 +87,7 @@ For those creating forks, the following files contain branding that should be up
 
 ## Questions
 
-If you have questions about this trademark policy or would like to request permission for a specific use, please open an issue in the repository or contact us at legal@craft.do.
+If you have questions about this trademark policy, please open an issue in this repository.
 
 ## Changes
 

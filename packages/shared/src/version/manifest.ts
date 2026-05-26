@@ -1,8 +1,14 @@
 import { debug } from "../utils/debug";
 
-const VERSIONS_URL = 'https://agents.craft.do/electron';
+const VERSIONS_URL = typeof process !== 'undefined'
+  ? process.env.ANALYST_AGENT_VERSION_MANIFEST_URL ?? ''
+  : '';
 
 export async function getLatestVersion(): Promise<string | null> {
+    if (!VERSIONS_URL) {
+      debug('[manifest] ANALYST_AGENT_VERSION_MANIFEST_URL is not configured');
+      return null;
+    }
     try {
       const response = await fetch(`${VERSIONS_URL}/latest`);
       const data = await response.json();
@@ -19,6 +25,10 @@ export async function getLatestVersion(): Promise<string | null> {
 }
 
 export async function getManifest(version: string): Promise<VersionManifest | null> {
+    if (!VERSIONS_URL) {
+      debug('[manifest] ANALYST_AGENT_VERSION_MANIFEST_URL is not configured');
+      return null;
+    }
     try {
         const url = `${VERSIONS_URL}/${version}/manifest.json`;
         debug(`[manifest] Getting manifest for version: ${url}`);

@@ -1,10 +1,10 @@
 # Analyst Agent Windows Installer
-# Usage: irm https://agents.craft.do/install-app.ps1 | iex
+# Usage: set ANALYST_AGENT_RELEASE_URL to a GitHub Releases download base URL, then run this script.
 
 & {
 $ErrorActionPreference = "Stop"
 
-$VERSIONS_URL = "https://agents.craft.do/electron"
+$VERSIONS_URL = if ($env:ANALYST_AGENT_RELEASE_URL) { $env:ANALYST_AGENT_RELEASE_URL.TrimEnd('/') } else { "https://github.com/yifuwang0421/AnalystAgent/releases/latest/download" }
 $DOWNLOAD_DIR = "$env:TEMP\craft-agent-install"
 $APP_NAME = "Analyst Agent"
 
@@ -29,11 +29,11 @@ Write-Info "Detected platform: $platform (arch: $arch)"
 # Create download directory
 New-Item -ItemType Directory -Force -Path $DOWNLOAD_DIR | Out-Null
 
-# Fetch YAML manifest directly from /electron/latest/ (no version endpoint needed)
+# Fetch YAML manifest directly from the release download base URL.
 Write-Info "Fetching release info..."
 $yamlPath = Join-Path $DOWNLOAD_DIR "latest.yml"
 try {
-    Invoke-WebRequest -Uri "$VERSIONS_URL/latest/latest.yml" -OutFile $yamlPath -UseBasicParsing
+    Invoke-WebRequest -Uri "$VERSIONS_URL/latest.yml" -OutFile $yamlPath -UseBasicParsing
 } catch {
     Write-Err "Failed to fetch release info: $_"
 }
@@ -111,7 +111,7 @@ if (-not $filename) {
     $filename = "Craft-Agents-$arch.exe"
 }
 
-$installerUrl = "$VERSIONS_URL/latest/$filename"
+$installerUrl = "$VERSIONS_URL/$filename"
 
 Write-Info "Expected sha512: $($checksum.Substring(0, 20))..."
 

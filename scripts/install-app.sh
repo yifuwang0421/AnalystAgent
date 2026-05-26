@@ -2,8 +2,9 @@
 
 set -e
 
-VERSIONS_URL="https://agents.craft.do/electron"
-DOWNLOAD_DIR="$HOME/.craft-agent/downloads"
+VERSIONS_URL="${ANALYST_AGENT_RELEASE_URL:-https://github.com/yifuwang0421/AnalystAgent/releases/latest/download}"
+VERSIONS_URL="${VERSIONS_URL%/}"
+DOWNLOAD_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/analyst-agent/downloads"
 
 # Colors for output
 RED='\033[0;31m'
@@ -164,9 +165,9 @@ info "Detected platform: $platform"
 mkdir -p "$DOWNLOAD_DIR"
 mkdir -p "$INSTALL_DIR"
 
-# Fetch YAML manifest directly from /electron/latest/ (no version endpoint needed)
+# Fetch YAML manifest directly from the release download base URL.
 info "Fetching release info..."
-manifest_yaml=$(download_file "$VERSIONS_URL/latest/$yml_file")
+manifest_yaml=$(download_file "$VERSIONS_URL/$yml_file")
 
 if [ -z "$manifest_yaml" ]; then
     error "Failed to fetch release info from $yml_file"
@@ -207,7 +208,7 @@ fi
 info "Expected sha512: ${checksum:0:20}..."
 
 # Download installer
-installer_url="$VERSIONS_URL/latest/$filename"
+installer_url="$VERSIONS_URL/$filename"
 installer_path="$DOWNLOAD_DIR/$filename"
 
 info "Downloading $filename..."
@@ -241,7 +242,7 @@ if [ "$OS_TYPE" = "darwin" ]; then
     zip_path="$installer_path"
 
     # Quit the app if it's running (use bundle ID for reliability)
-    APP_BUNDLE_ID="com.lukilabs.craft-agent"
+    APP_BUNDLE_ID="io.github.yifuwang0421.analyst-agent"
     if pgrep -x "Analyst Agent" >/dev/null 2>&1; then
         info "Quitting Analyst Agent..."
         osascript -e "tell application id \"$APP_BUNDLE_ID\" to quit" 2>/dev/null || true
@@ -351,7 +352,7 @@ ELECTRON_CACHE_ALT="$HOME/.cache/@craft-agent"
 # Verify AppImage exists
 if [ ! -f "$APPIMAGE_PATH" ]; then
     echo "Error: Analyst Agent not found at $APPIMAGE_PATH"
-    echo "Reinstall: curl -fsSL https://agents.craft.do/install-app.sh | bash"
+    echo "Reinstall: download scripts/install-app.sh from this repository and run it again"
     exit 1
 fi
 

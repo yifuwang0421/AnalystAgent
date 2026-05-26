@@ -38,9 +38,9 @@ export function Header({ hasSession, sessionTitle, isDark, onToggleTheme, onClea
   const { t } = useTranslation()
   return (
     <header className="shrink-0 grid grid-cols-[auto_1fr_auto] items-center px-4 py-3">
-      {/* Logo - links to main site */}
+      {/* Logo - links to project repository */}
       <a
-        href="https://agents.craft.do"
+        href="https://github.com/yifuwang0421/AnalystAgent"
         className="hover:opacity-80 transition-opacity"
         title="Analyst Agent"
       >

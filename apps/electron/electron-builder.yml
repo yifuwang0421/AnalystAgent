@@ -1,6 +1,6 @@
-appId: com.lukilabs.analyst-agent
+appId: io.github.yifuwang0421.analyst-agent
 productName: Analyst Agent
-copyright: Copyright © 2026 Craft Docs Ltd.
+copyright: Copyright 2026 Analyst Agent contributors
 
 electronVersion: "39.2.7"
 
@@ -76,7 +76,7 @@ extraMetadata:
 # Auto-update: electron-updater fetches from this URL for update manifests (.yml files)
 publish:
   provider: generic
-  url: https://agents.craft.do/electron/latest
+  url: https://github.com/yifuwang0421/AnalystAgent/releases/latest/download
 
 # Disable ASAR to avoid decompression overhead and click delays
 asar: false
@@ -193,7 +193,7 @@ nsis:
 linux:
   icon: resources/icon.png
   category: Utility
-  maintainer: "Craft Docs Ltd. <support@craft.do>"
+  maintainer: "Analyst Agent contributors"
   target:
     - target: AppImage
       arch:
