@@ -8,40 +8,201 @@
  * - Permissions (Default mode, Mode cycling)
  * - Advanced (Working directory, Local MCP servers)
  *
- * Note: AI settings (model, thinking, connection) have been moved to AiSettingsPage.
+ * Includes workspace AI overrides for the legacy settings surface.
  */
 
 import * as React from 'react'
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { motion, AnimatePresence } from 'motion/react'
 import { PanelHeader } from '@/components/app-shell/PanelHeader'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { HeaderMenu } from '@/components/ui/HeaderMenu'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { useAppShellContext } from '@/context/AppShellContext'
 import { cn } from '@/lib/utils'
 import { routes } from '@/lib/navigate'
 import { Spinner } from '@craft-agent/ui'
 import { RenameDialog } from '@/components/ui/rename-dialog'
-import type { PermissionMode, WorkspaceSettings, LoadedSource } from '../../../shared/types'
+import type { LlmConnectionWithStatus, PermissionMode, WorkspaceSettings, LoadedSource } from '../../../shared/types'
 import { useDirectoryPicker } from '@/hooks/useDirectoryPicker'
 import { ServerDirectoryBrowser } from '@/components/ServerDirectoryBrowser'
 import { PERMISSION_MODE_CONFIG } from '@craft-agent/shared/agent/mode-types'
 import type { DetailsPageMeta } from '@/lib/navigation-registry'
 import { SourceAvatar } from '@/components/ui/source-avatar'
 import { toast } from 'sonner'
+import { Check, X } from 'lucide-react'
+import { getModelShortName, type ModelDefinition } from '@config/models'
+import { getModelsForProviderType } from '@config/llm-connections'
 
 import {
   SettingsSection,
   SettingsCard,
   SettingsRow,
   SettingsToggle,
+  SettingsMenuSelect,
   SettingsMenuSelectRow,
 } from '@/components/settings'
 
 export const meta: DetailsPageMeta = {
   navigator: 'settings',
   slug: 'workspace',
+}
+
+const CUSTOM_MODEL_VALUE = '__custom_model__'
+
+function getModelOptionsForConnection(
+  connection: LlmConnectionWithStatus | undefined,
+): Array<{ value: string; label: string; description?: string; descriptionKey?: string }> {
+  if (!connection) return []
+
+  if (connection.models && connection.models.length > 0) {
+    return connection.models.map((m) => {
+      if (typeof m === 'string') {
+        return { value: m, label: getModelShortName(m), description: '' }
+      }
+      const def = m as ModelDefinition
+      return { value: def.id, label: def.name, description: def.description, descriptionKey: def.descriptionKey }
+    })
+  }
+
+  return getModelsForProviderType(connection.providerType, connection.piAuthProvider).map((m) => ({
+    value: m.id,
+    label: m.name,
+    description: m.description,
+    descriptionKey: m.descriptionKey,
+  }))
+}
+
+function ModelSettingRow({
+  label,
+  description,
+  value,
+  onValueChange,
+  options,
+  inheritOption,
+  disabled,
+}: {
+  label: string
+  description?: string
+  value: string
+  onValueChange: (value: string) => void | Promise<void>
+  options: Array<{ value: string; label: string; description?: string; descriptionKey?: string }>
+  inheritOption?: { value: string; label: string; description?: string }
+  disabled?: boolean
+}) {
+  const { t } = useTranslation()
+  const [isCustomOpen, setIsCustomOpen] = useState(false)
+  const [customModel, setCustomModel] = useState(value === inheritOption?.value ? '' : value)
+
+  useEffect(() => {
+    if (!isCustomOpen) {
+      setCustomModel(value === inheritOption?.value ? '' : value)
+    }
+  }, [isCustomOpen, value, inheritOption?.value])
+
+  const translatedOptions = options.map((option) => ({
+    value: option.value,
+    label: option.label,
+    description: option.descriptionKey ? t(option.descriptionKey) : option.description,
+  }))
+  const knownValues = new Set([
+    ...(inheritOption ? [inheritOption.value] : []),
+    ...translatedOptions.map((option) => option.value),
+  ])
+  const currentCustomOption = value && !knownValues.has(value)
+    ? [{
+        value,
+        label: getModelShortName(value),
+        description: t('settings.ai.customModelCurrent'),
+      }]
+    : []
+
+  const selectOptions = [
+    ...(inheritOption ? [inheritOption] : []),
+    ...currentCustomOption,
+    ...translatedOptions,
+    {
+      value: CUSTOM_MODEL_VALUE,
+      label: t('settings.ai.customModel'),
+      description: t('settings.ai.customModelDesc'),
+    },
+  ]
+
+  const handleSelect = (nextValue: string) => {
+    if (nextValue === CUSTOM_MODEL_VALUE) {
+      setCustomModel(value === inheritOption?.value ? '' : value)
+      setIsCustomOpen(true)
+      return
+    }
+    setIsCustomOpen(false)
+    void onValueChange(nextValue)
+  }
+
+  const handleSaveCustom = async () => {
+    const trimmed = customModel.trim()
+    if (!trimmed) return
+    await onValueChange(trimmed)
+    setIsCustomOpen(false)
+  }
+
+  return (
+    <SettingsRow label={label} description={description}>
+      <div className="flex flex-col items-end gap-2">
+        <SettingsMenuSelect
+          value={value}
+          onValueChange={handleSelect}
+          options={selectOptions}
+          disabled={disabled}
+          searchable
+          menuWidth={320}
+          placeholder={t('settings.ai.model')}
+        />
+        {isCustomOpen && (
+          <div className="flex items-center gap-2">
+            <Input
+              value={customModel}
+              onChange={(event) => setCustomModel(event.target.value)}
+              placeholder={t('settings.ai.customModelPlaceholder')}
+              className="h-8 w-56"
+              autoFocus
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  event.preventDefault()
+                  void handleSaveCustom()
+                }
+                if (event.key === 'Escape') {
+                  setIsCustomOpen(false)
+                }
+              }}
+            />
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => void handleSaveCustom()}
+              disabled={!customModel.trim()}
+              aria-label={t('common.save')}
+            >
+              <Check className="h-4 w-4" />
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => setIsCustomOpen(false)}
+              aria-label={t('common.cancel')}
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+        )}
+      </div>
+    </SettingsRow>
+  )
 }
 
 // ============================================
@@ -55,6 +216,7 @@ export default function WorkspaceSettingsPage() {
   const appShellContext = useAppShellContext()
   const activeWorkspaceId = appShellContext.activeWorkspaceId
   const onRefreshWorkspaces = appShellContext.onRefreshWorkspaces
+  const llmConnections = appShellContext.llmConnections
 
   // Workspace settings state
   const [wsName, setWsName] = useState('')
@@ -63,6 +225,8 @@ export default function WorkspaceSettingsPage() {
   const [wsIconUrl, setWsIconUrl] = useState<string | null>(null)
   const [isUploadingIcon, setIsUploadingIcon] = useState(false)
   const [permissionMode, setPermissionMode] = useState<PermissionMode>('ask')
+  const [workspaceLlmConnection, setWorkspaceLlmConnection] = useState<string | undefined>()
+  const [workspaceModel, setWorkspaceModel] = useState<string | undefined>()
   const [workingDirectory, setWorkingDirectory] = useState('')
   const [localMcpEnabled, setLocalMcpEnabled] = useState(true)
   const [isLoadingWorkspace, setIsLoadingWorkspace] = useState(true)
@@ -90,6 +254,8 @@ export default function WorkspaceSettingsPage() {
           setWsName(settings.name || '')
           setWsNameEditing(settings.name || '')
           setPermissionMode(settings.permissionMode || 'ask')
+          setWorkspaceLlmConnection(settings.defaultLlmConnection)
+          setWorkspaceModel(settings.model)
           setWorkingDirectory(settings.workingDirectory || '')
           setLocalMcpEnabled(settings.localMcpEnabled ?? true)
           // Load cyclable permission modes from workspace settings
@@ -249,6 +415,30 @@ export default function WorkspaceSettingsPage() {
     },
     [updateWorkspaceSetting]
   )
+
+  const handleWorkspaceLlmConnectionChange = useCallback(
+    async (slug: string) => {
+      const value = slug === 'global' ? undefined : slug
+      setWorkspaceLlmConnection(value)
+      await updateWorkspaceSetting('defaultLlmConnection', value)
+    },
+    [updateWorkspaceSetting]
+  )
+
+  const handleWorkspaceModelChange = useCallback(
+    async (model: string) => {
+      const value = model === 'global' ? undefined : model
+      setWorkspaceModel(value)
+      await updateWorkspaceSetting('model', value)
+    },
+    [updateWorkspaceSetting]
+  )
+
+  const workspaceEffectiveConnection = useMemo(() => {
+    return workspaceLlmConnection
+      ? llmConnections.find(c => c.slug === workspaceLlmConnection)
+      : llmConnections.find(c => c.isDefault)
+  }, [workspaceLlmConnection, llmConnections])
 
   const handleWorkingDirectorySelected = useCallback(async (selectedPath: string) => {
     const saved = await updateWorkspaceSetting('workingDirectory', selectedPath)
@@ -428,6 +618,39 @@ export default function WorkspaceSettingsPage() {
                 placeholder={t("settings.workspace.enterWorkspaceName")}
               />
             </SettingsSection>
+
+            {/* AI */}
+            {llmConnections.length > 0 && (
+              <SettingsSection title={t("settings.ai.title")} description={t("settings.ai.description")}>
+                <SettingsCard>
+                  <SettingsMenuSelectRow
+                    label={t("settings.ai.connection")}
+                    description={t("settings.ai.connectionDesc")}
+                    value={workspaceLlmConnection ?? 'global'}
+                    onValueChange={handleWorkspaceLlmConnectionChange}
+                    options={[
+                      { value: 'global', label: t("settings.ai.useDefault"), description: t("settings.ai.inheritFromApp") },
+                      ...llmConnections.map((conn) => ({
+                        value: conn.slug,
+                        label: conn.name,
+                        description: conn.providerType === 'anthropic' ? 'Anthropic API' :
+                                     conn.providerType === 'pi' ? 'Craft Agents Backend' :
+                                     conn.providerType === 'pi_compat' ? 'Craft Agents Backend Compatible' :
+                                     conn.providerType || 'Unknown',
+                      })),
+                    ]}
+                  />
+                  <ModelSettingRow
+                    label={t("settings.ai.model")}
+                    description={t("settings.ai.modelDesc")}
+                    value={workspaceModel ?? 'global'}
+                    onValueChange={handleWorkspaceModelChange}
+                    inheritOption={{ value: 'global', label: t("settings.ai.useDefault"), description: t("settings.ai.inheritFromApp") }}
+                    options={getModelOptionsForConnection(workspaceEffectiveConnection)}
+                  />
+                </SettingsCard>
+              </SettingsSection>
+            )}
 
             {/* Permissions */}
             <SettingsSection title={t("settings.workspace.permissionsSection")}>

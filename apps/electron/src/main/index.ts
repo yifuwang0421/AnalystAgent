@@ -84,7 +84,7 @@ import { setSearchPlatform, setImageProcessor } from '@craft-agent/server-core/s
 import { createApplicationMenu } from './menu'
 import { WindowManager } from './window-manager'
 import { loadWindowState, saveWindowState } from './window-state'
-import { getWorkspaces, getWorkspaceByNameOrId, loadStoredConfig, addWorkspace, saveConfig } from '@craft-agent/shared/config'
+import { getWorkspaces, getWorkspaceByNameOrId, loadStoredConfig, addWorkspace, saveConfig, getActiveWorkspace, setActiveWorkspace } from '@craft-agent/shared/config'
 import { getDefaultWorkspacesDir } from '@craft-agent/shared/workspaces'
 import { initializeDocs } from '@craft-agent/shared/docs'
 import { initializeReleaseNotes } from '@craft-agent/shared/release-notes'
@@ -282,7 +282,9 @@ app.on('open-url', (event, url) => {
 // Handle deeplink on Windows/Linux (single instance check)
 const gotTheLock = app.requestSingleInstanceLock()
 if (!gotTheLock) {
-  app.quit()
+  mainLog.info('Another app instance is already running; exiting this instance')
+  app.exit(0)
+  process.exit(0)
 } else {
   app.on('second-instance', (_event, commandLine, _workingDirectory) => {
     // Someone tried to run a second instance, we should focus our window.
@@ -353,9 +355,14 @@ async function createInitialWindows(): Promise<void> {
     }
   }
 
-  // Default: open window for first workspace
-  windowManager.createWindow({ workspaceId: workspaces[0].id })
-  mainLog.info(`Created window for first workspace: ${workspaces[0].name}`)
+  const activeWorkspace = getActiveWorkspace()
+  const startupWorkspace = activeWorkspace && validWorkspaceIds.includes(activeWorkspace.id)
+    ? activeWorkspace
+    : workspaces[0]
+
+  // Default: open window for the active workspace, falling back to first workspace
+  windowManager.createWindow({ workspaceId: startupWorkspace.id })
+  mainLog.info(`Created window for active workspace: ${startupWorkspace.name}`)
 }
 
 app.whenReady().then(async () => {
@@ -1115,6 +1122,9 @@ app.on('before-quit', async (event) => {
     let lastFocusedWorkspaceId: string | undefined
     if (focusedWindow) {
       lastFocusedWorkspaceId = windowManager.getWorkspaceForWindow(focusedWindow.webContents.id) ?? undefined
+    }
+    if (lastFocusedWorkspaceId) {
+      setActiveWorkspace(lastFocusedWorkspaceId)
     }
 
     saveWindowState({

@@ -14,6 +14,7 @@ import { useTranslation } from 'react-i18next'
 import { PanelHeader } from '@/components/app-shell/PanelHeader'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { HeaderMenu } from '@/components/ui/HeaderMenu'
 import { routes } from '@/lib/navigate'
 import { X, MoreHorizontal, Pencil, Trash2, Star, ChevronDown, ChevronRight, CheckCircle2, AlertTriangle, RefreshCcw, Settings2, MessageSquareMore, Zap, Clock, Check } from 'lucide-react'
@@ -44,6 +45,7 @@ import {
   SettingsSection,
   SettingsCard,
   SettingsRow,
+  SettingsMenuSelect,
   SettingsMenuSelectRow,
   SettingsToggle,
 } from '@/components/settings'
@@ -96,6 +98,145 @@ function getModelOptionsForConnection(
     description: m.description,
     descriptionKey: m.descriptionKey,
   }))
+}
+
+const CUSTOM_MODEL_VALUE = '__custom_model__'
+
+function hasModelOption(
+  options: Array<{ value: string }>,
+  model: string | undefined,
+): boolean {
+  return !!model && options.some((option) => option.value === model)
+}
+
+function ModelSettingRow({
+  label,
+  description,
+  value,
+  onValueChange,
+  options,
+  inheritOption,
+  disabled,
+}: {
+  label: string
+  description?: string
+  value: string
+  onValueChange: (value: string) => void | Promise<void>
+  options: Array<{ value: string; label: string; description?: string; descriptionKey?: string }>
+  inheritOption?: { value: string; label: string; description?: string }
+  disabled?: boolean
+}) {
+  const { t } = useTranslation()
+  const [isCustomOpen, setIsCustomOpen] = useState(false)
+  const [customModel, setCustomModel] = useState(value === inheritOption?.value ? '' : value)
+
+  useEffect(() => {
+    if (!isCustomOpen) {
+      setCustomModel(value === inheritOption?.value ? '' : value)
+    }
+  }, [isCustomOpen, value, inheritOption?.value])
+
+  const translatedOptions = options.map((option) => ({
+    value: option.value,
+    label: option.label,
+    description: option.descriptionKey ? t(option.descriptionKey) : option.description,
+  }))
+  const knownValues = new Set([
+    ...(inheritOption ? [inheritOption.value] : []),
+    ...translatedOptions.map((option) => option.value),
+  ])
+  const currentCustomOption = value && !knownValues.has(value)
+    ? [{
+        value,
+        label: getModelShortName(value),
+        description: t('settings.ai.customModelCurrent'),
+      }]
+    : []
+
+  const selectOptions = [
+    ...(inheritOption ? [inheritOption] : []),
+    ...currentCustomOption,
+    ...translatedOptions,
+    {
+      value: CUSTOM_MODEL_VALUE,
+      label: t('settings.ai.customModel'),
+      description: t('settings.ai.customModelDesc'),
+    },
+  ]
+
+  const handleSelect = (nextValue: string) => {
+    if (nextValue === CUSTOM_MODEL_VALUE) {
+      setCustomModel(value === inheritOption?.value ? '' : value)
+      setIsCustomOpen(true)
+      return
+    }
+    setIsCustomOpen(false)
+    void onValueChange(nextValue)
+  }
+
+  const handleSaveCustom = async () => {
+    const trimmed = customModel.trim()
+    if (!trimmed) return
+    await onValueChange(trimmed)
+    setIsCustomOpen(false)
+  }
+
+  return (
+    <SettingsRow label={label} description={description}>
+      <div className="flex flex-col items-end gap-2">
+        <SettingsMenuSelect
+          value={value}
+          onValueChange={handleSelect}
+          options={selectOptions}
+          disabled={disabled}
+          searchable
+          menuWidth={320}
+          placeholder={t('settings.ai.model')}
+        />
+        {isCustomOpen && (
+          <div className="flex items-center gap-2">
+            <Input
+              value={customModel}
+              onChange={(event) => setCustomModel(event.target.value)}
+              placeholder={t('settings.ai.customModelPlaceholder')}
+              className="h-8 w-56"
+              autoFocus
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  event.preventDefault()
+                  void handleSaveCustom()
+                }
+                if (event.key === 'Escape') {
+                  setIsCustomOpen(false)
+                }
+              }}
+            />
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => void handleSaveCustom()}
+              disabled={!customModel.trim()}
+              aria-label={t('common.save')}
+            >
+              <Check className="h-4 w-4" />
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => setIsCustomOpen(false)}
+              aria-label={t('common.cancel')}
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+        )}
+      </div>
+    </SettingsRow>
+  )
 }
 
 export const meta: DetailsPageMeta = {
@@ -550,17 +691,13 @@ function WorkspaceOverrideCard({ workspace, llmConnections, onSettingsChange }: 
                   })),
                 ]}
               />
-              <SettingsMenuSelectRow
+              <ModelSettingRow
                 label={t("settings.ai.model")}
                 description={t("settings.ai.modelDesc")}
                 value={currentModel}
                 onValueChange={handleModelChange}
-                options={[
-                  { value: 'global', label: t("settings.ai.useDefault"), description: t("settings.ai.inheritFromApp") },
-                  ...getModelOptionsForConnection(workspaceEffectiveConnection).map(o => ({
-                    ...o, description: o.descriptionKey ? t(o.descriptionKey) : o.description,
-                  })),
-                ]}
+                inheritOption={{ value: 'global', label: t("settings.ai.useDefault"), description: t("settings.ai.inheritFromApp") }}
+                options={getModelOptionsForConnection(workspaceEffectiveConnection)}
               />
               <SettingsMenuSelectRow
                 label={t("settings.ai.thinking")}
@@ -927,7 +1064,14 @@ export default function AiSettingsPage() {
   const handleDefaultModelChange = useCallback(async (model: string) => {
     if (!window.electronAPI || !defaultConnection) return
     // Update defaultModel on the connection, then save the full connection
-    const updated = { ...defaultConnection, defaultModel: model }
+    const modelOptions = getModelOptionsForConnection(defaultConnection)
+    const updated = {
+      ...defaultConnection,
+      defaultModel: model,
+      models: hasModelOption(modelOptions, model)
+        ? defaultConnection.models
+        : [...(defaultConnection.models ?? []), model],
+    }
     // Remove status fields that aren't part of LlmConnection
     const { isAuthenticated: _a, authError: _b, isDefault: _c, ...connectionData } = updated
     await window.electronAPI.saveLlmConnection(connectionData as import('../../../shared/types').LlmConnection)
@@ -1032,14 +1176,12 @@ export default function AiSettingsPage() {
                                    conn.providerType || 'Unknown',
                     }))}
                   />
-                  <SettingsMenuSelectRow
+                  <ModelSettingRow
                     label={t("settings.ai.model")}
                     description={t("settings.ai.modelDesc")}
                     value={defaultModel}
                     onValueChange={handleDefaultModelChange}
-                    options={getModelOptionsForConnection(defaultConnection).map(o => ({
-                      ...o, description: o.descriptionKey ? t(o.descriptionKey) : o.description,
-                    }))}
+                    options={getModelOptionsForConnection(defaultConnection)}
                   />
                   <SettingsMenuSelectRow
                     label={t("settings.ai.thinking")}

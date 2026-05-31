@@ -95,6 +95,8 @@ export function registerWorkspaceCoreHandlers(server: RpcServer, deps: HandlerDe
   server.handle(RPC_CHANNELS.window.SWITCH_WORKSPACE, async (ctx, workspaceId: string) => {
     const end = perf.start('ipc.switchWorkspace', { workspaceId })
 
+    setActiveWorkspace(workspaceId)
+
     // Keep WS push routing in sync (works for both GUI and headless)
     server.updateClientWorkspace?.(ctx.clientId, workspaceId)
 
