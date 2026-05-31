@@ -486,11 +486,13 @@ export default function App() {
       }
       setSessionOptions(optionsMap)
 
-      await Promise.allSettled(
-        loadedSessions.map((s) => reconcilePermissionModeState(s.id))
-      )
-
       setSessionsLoaded(true)
+
+      Promise.allSettled(
+        loadedSessions.map((s) => reconcilePermissionModeState(s.id))
+      ).catch((error) => {
+        console.error('[App] Failed to reconcile permission modes after session load:', error)
+      })
 
       if (initialSessionId && windowWorkspaceId) {
         const session = loadedSessions.find(s => s.id === initialSessionId)
