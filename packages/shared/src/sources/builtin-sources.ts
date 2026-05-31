@@ -27,7 +27,7 @@ export function getBuiltinSources(_workspaceId: string, _workspaceRootPath: stri
 }
 
 /**
- * Get the built-in Craft Agents docs source.
+ * Get the built-in Analyst Agent docs source.
  *
  * @deprecated craft-agents-docs is now an always-available MCP server
  * configured directly in craft-agent.ts. This function is kept for
@@ -37,17 +37,17 @@ export function getDocsSource(workspaceId: string, workspaceRootPath: string): L
   // Return a placeholder - this shouldn't be called anymore
   const placeholderConfig: FolderSourceConfig = {
     id: 'builtin-craft-agents-docs',
-    name: 'Craft Agents Docs',
+    name: 'Analyst Agent Docs',
     slug: 'craft-agents-docs',
     enabled: false,
     provider: 'mintlify',
     type: 'mcp',
     mcp: {
       transport: 'http',
-      url: 'https://agents.craft.do/docs/mcp',
+      url: 'https://github.com/yifuwang0421/AnalystAgent/docs/mcp',
       authType: 'none',
     },
-    tagline: 'Search Craft Agents documentation and source setup guides',
+    tagline: 'Search Analyst Agent documentation and source setup guides',
     icon: '📚',
     isAuthenticated: true,
     connectionStatus: 'connected',

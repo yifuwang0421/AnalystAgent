@@ -2,7 +2,7 @@
  * Renderer-side Performance Instrumentation
  *
  * Tracks session switch timing from click to render complete.
- * Logs via electron-log to the main log file.
+ * Logs through the renderer logger bridge to the main log file.
  *
  * Usage:
  *   // In SessionList click handler:
@@ -15,9 +15,9 @@
  *   rendererPerf.endSessionSwitch(sessionId)
  */
 
-import log from 'electron-log/renderer'
+import { createRendererLogScope } from './logger'
 
-const perfLog = log.scope('perf')
+const perfLog = createRendererLogScope('perf')
 
 interface SessionSwitchMetric {
   sessionId: string

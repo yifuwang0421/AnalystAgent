@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 /**
- * @craft-agent/server — standalone headless Craft Agent server.
+ * @craft-agent/server — standalone headless Analyst Agent server.
  *
  * Usage:
  *   CRAFT_SERVER_TOKEN=<secret> bun run packages/server/src/index.ts
@@ -210,7 +210,7 @@ const instance = await (async () => {
           sessionManager,
           credentialManager: getCredentialManager(),
           getMessagingDir: (wsId: string) =>
-            join(homedir(), '.craft-agent', 'workspaces', wsId, 'messaging'),
+            join(homedir(), '.analyst-agent', 'workspaces', wsId, 'messaging'),
           // Headless has no legacy messaging dir — workspaces start clean.
           whatsapp: {
             workerEntry: waWorkerEntry,

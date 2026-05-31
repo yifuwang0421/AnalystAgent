@@ -634,8 +634,8 @@ export default function WorkspaceSettingsPage() {
                         value: conn.slug,
                         label: conn.name,
                         description: conn.providerType === 'anthropic' ? 'Anthropic API' :
-                                     conn.providerType === 'pi' ? 'Craft Agents Backend' :
-                                     conn.providerType === 'pi_compat' ? 'Craft Agents Backend Compatible' :
+                                     conn.providerType === 'pi' ? 'Analyst Agent Backend' :
+                                     conn.providerType === 'pi_compat' ? 'Analyst Agent Backend Compatible' :
                                      conn.providerType || 'Unknown',
                       })),
                     ]}

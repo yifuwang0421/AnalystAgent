@@ -17,7 +17,7 @@
  *
  * Arguments:
  *   --session-id: Unique session identifier
- *   --workspace-root: Path to workspace folder (~/.craft-agent/workspaces/{id})
+ *   --workspace-root: Path to workspace folder (~/.analyst-agent/workspaces/{id})
  *   --plans-folder: Path to session's plans folder
  */
 
@@ -217,8 +217,8 @@ function createCodexContext(config: SessionConfig): SessionToolContext {
     // Preferences: write directly to preferences.json
     updatePreferences: (updates: Record<string, unknown>) => {
       // Resolve preferences path from config dir (parent of workspaces dir)
-      // workspaceRootPath = ~/.craft-agent/workspaces/{id}
-      // preferencesPath = ~/.craft-agent/preferences.json
+      // workspaceRootPath = ~/.analyst-agent/workspaces/{id}
+      // preferencesPath = ~/.analyst-agent/preferences.json
       const configDir = join(workspaceRootPath, '..', '..');
       const prefsPath = join(configDir, 'preferences.json');
       try {
@@ -269,10 +269,10 @@ function createSessionTools(includeDeveloperFeedback: boolean): Tool[] {
 }
 
 // ============================================================
-// Craft Agents Docs Upstream Proxy
+// Analyst Agent Docs Upstream Proxy
 // ============================================================
 
-const DOCS_MCP_URL = 'https://agents.craft.do/docs/mcp';
+const DOCS_MCP_URL = 'https://github.com/yifuwang0421/AnalystAgent/docs/mcp';
 
 /** Cached upstream client + tool list */
 let docsClient: Client | null = null;
@@ -296,9 +296,9 @@ async function connectDocsUpstream(): Promise<void> {
     docsTools = (result.tools || []) as Tool[];
     docsClient = client;
 
-    console.error(`Craft Agents Docs proxy connected: ${docsTools.length} tools`);
+    console.error(`Analyst Agent Docs proxy connected: ${docsTools.length} tools`);
   } catch (err) {
-    console.error(`Craft Agents Docs proxy connection failed (non-fatal): ${err instanceof Error ? err.message : String(err)}`);
+    console.error(`Analyst Agent Docs proxy connection failed (non-fatal): ${err instanceof Error ? err.message : String(err)}`);
     docsClient = null;
     docsTools = [];
   }
@@ -312,7 +312,7 @@ async function callDocsUpstream(
   args: Record<string, unknown>
 ): Promise<{ content: Array<{ type: 'text'; text: string }>; isError?: boolean }> {
   if (!docsClient) {
-    return errorResponse(`Craft Agents Docs server is not connected. Tool '${name}' unavailable.`);
+    return errorResponse(`Analyst Agent Docs server is not connected. Tool '${name}' unavailable.`);
   }
 
   try {

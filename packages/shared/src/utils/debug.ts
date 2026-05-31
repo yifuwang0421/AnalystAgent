@@ -38,8 +38,9 @@ function getElectronLog(): { info?: (message: string) => void } | null {
   electronLogChecked = true;
   try {
     // Optional dependency - only available in Electron main process.
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const loaded = require('electron-log/main');
+    // Keep this require opaque to browser bundlers; renderer builds must not
+    // try to pre-bundle electron-log's Node transports.
+    const loaded = (0, eval)('require')('electron-log/main');
     electronLog = loaded?.default ?? loaded ?? null;
   } catch {
     electronLog = null;

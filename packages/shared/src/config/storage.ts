@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync, rmSync, statSync } from 'fs';
+import { cpSync, existsSync, mkdirSync, readFileSync, writeFileSync, rmSync, statSync } from 'fs';
 import { join, dirname, basename } from 'path';
 import { getCredentialManager } from '../credentials/index.ts';
 import { getOrCreateLatestSession, type SessionConfig } from '../sessions/index.ts';
@@ -15,7 +15,7 @@ import { initializeDocs } from '../docs/index.ts';
 import { expandPath, toPortablePath, getBundledAssetsDir } from '../utils/paths.ts';
 import { debug } from '../utils/debug.ts';
 import { readJsonFileSync } from '../utils/files.ts';
-import { CONFIG_DIR } from './paths.ts';
+import { CONFIG_DIR, LEGACY_CONFIG_DIR, SHOULD_MIGRATE_LEGACY_CONFIG } from './paths.ts';
 import type { StoredAttachment, StoredMessage } from '@craft-agent/core/types';
 import type { Plan } from '../agent/plan-types.ts';
 import type { PermissionMode } from '../agent/mode-manager.ts';
@@ -95,6 +95,7 @@ export interface StoredConfig {
 
 const CONFIG_FILE = join(CONFIG_DIR, 'config.json');
 const CONFIG_DEFAULTS_FILE = join(CONFIG_DIR, 'config-defaults.json');
+const LEGACY_CONFIG_MIGRATION_ID = 'legacy-craft-config-dir-v1';
 
 // Track if config-defaults have been synced this session (prevents re-sync on hot reload)
 let configDefaultsSynced = false;
@@ -109,7 +110,7 @@ let configDefaultsSynced = false;
 /** Minimal config-defaults used when bundled assets aren't available (CI, standalone server). */
 const FALLBACK_CONFIG_DEFAULTS: ConfigDefaults = {
   version: '1.0',
-  description: 'Default configuration values for Craft Agents',
+  description: 'Default configuration values for Analyst Agent',
   defaults: {
     notificationsEnabled: true,
     colorTheme: 'default',
@@ -159,7 +160,7 @@ function syncConfigDefaults(): void {
 }
 
 /**
- * Load config defaults from ~/.craft-agent/config-defaults.json
+ * Load config defaults from ~/.analyst-agent/config-defaults.json
  * This file is synced from bundled assets on every launch.
  */
 export function loadConfigDefaults(): ConfigDefaults {
@@ -205,13 +206,95 @@ export function ensureConfigDefaults(): void {
 
 let configDirInitialized = false;
 
+function migrateLegacyConfigDirIfNeeded(): void {
+  if (!SHOULD_MIGRATE_LEGACY_CONFIG) return;
+  if (!existsSync(LEGACY_CONFIG_DIR)) return;
+
+  const legacyConfigFile = join(LEGACY_CONFIG_DIR, 'config.json');
+  if (!existsSync(legacyConfigFile)) return;
+  const legacyConfig = readJsonFileSync<StoredConfig>(legacyConfigFile);
+
+  if (!existsSync(CONFIG_DIR)) {
+    cpSync(LEGACY_CONFIG_DIR, CONFIG_DIR, {
+      recursive: true,
+      errorOnExist: false,
+      force: false,
+    });
+    writeFileSync(
+      join(CONFIG_DIR, 'config.json'),
+      JSON.stringify({
+        ...normalizeLegacyConfigBranding(legacyConfig),
+        migrationsApplied: Array.from(new Set([
+          ...(legacyConfig.migrationsApplied ?? []),
+          LEGACY_CONFIG_MIGRATION_ID,
+        ])),
+      }, null, 2),
+      'utf-8'
+    );
+    debug('[config] Migrated legacy config directory to', CONFIG_DIR);
+    return;
+  }
+
+  const targetConfigFile = join(CONFIG_DIR, 'config.json');
+  const targetConfig = existsSync(targetConfigFile)
+    ? readJsonFileSync<StoredConfig>(targetConfigFile)
+    : null;
+
+  if (targetConfig?.migrationsApplied?.includes(LEGACY_CONFIG_MIGRATION_ID)) {
+    return;
+  }
+
+  const legacyWorkspaceCount = Array.isArray(legacyConfig.workspaces) ? legacyConfig.workspaces.length : 0;
+  const targetWorkspaceCount = Array.isArray(targetConfig?.workspaces) ? targetConfig!.workspaces.length : 0;
+  const legacyConnectionCount = Array.isArray(legacyConfig.llmConnections) ? legacyConfig.llmConnections.length : 0;
+  const targetConnectionCount = Array.isArray(targetConfig?.llmConnections) ? targetConfig!.llmConnections!.length : 0;
+  const legacyIsRicher = legacyWorkspaceCount > targetWorkspaceCount || legacyConnectionCount > targetConnectionCount;
+
+  if (!targetConfig || legacyIsRicher) {
+    cpSync(LEGACY_CONFIG_DIR, CONFIG_DIR, {
+      recursive: true,
+      errorOnExist: false,
+      force: false,
+    });
+    const migratedConfig: StoredConfig = {
+      ...normalizeLegacyConfigBranding(legacyConfig),
+      migrationsApplied: Array.from(new Set([
+        ...(legacyConfig.migrationsApplied ?? []),
+        LEGACY_CONFIG_MIGRATION_ID,
+      ])),
+    };
+    writeFileSync(targetConfigFile, JSON.stringify(migratedConfig, null, 2), 'utf-8');
+    debug('[config] Migrated richer legacy config into', CONFIG_DIR);
+    return;
+  }
+
+  targetConfig.migrationsApplied = Array.from(new Set([
+    ...(targetConfig.migrationsApplied ?? []),
+    LEGACY_CONFIG_MIGRATION_ID,
+  ]));
+  writeFileSync(targetConfigFile, JSON.stringify(targetConfig, null, 2), 'utf-8');
+}
+
+function normalizeLegacyConfigBranding<T>(value: T): T {
+  return JSON.parse(
+    JSON.stringify(value)
+      .replaceAll('Craft Agents Backend', 'Analyst Agent Backend')
+      .replaceAll('Craft Agents', 'Analyst Agent')
+      .replaceAll('Craft Agent', 'Analyst Agent')
+      .replaceAll('~/.craft-agent', '~/.analyst-agent')
+      .replaceAll('.craft-agent', '.analyst-agent')
+  ) as T;
+}
+
 export function ensureConfigDir(): void {
   if (configDirInitialized) return;
+
+  migrateLegacyConfigDirIfNeeded();
 
   if (!existsSync(CONFIG_DIR)) {
     mkdirSync(CONFIG_DIR, { recursive: true });
   }
-  // Initialize bundled docs (creates ~/.craft-agent/docs/ with sources.md, agents.md, permissions.md)
+  // Initialize bundled docs (creates ~/.analyst-agent/docs/ with sources.md, agents.md, permissions.md)
   initializeDocs();
 
   // Initialize config defaults
@@ -1180,7 +1263,7 @@ const APP_THEME_FILE = join(CONFIG_DIR, 'theme.json');
 const APP_THEMES_DIR = join(CONFIG_DIR, 'themes');
 
 /**
- * Get the path to the app-level theme override file (~/.craft-agent/theme.json).
+ * Get the path to the app-level theme override file (~/.analyst-agent/theme.json).
  */
 export function getAppThemePath(): string {
   return APP_THEME_FILE;
@@ -1191,7 +1274,7 @@ let presetsInitialized = false;
 
 /**
  * Get the app-level themes directory.
- * Preset themes are stored at ~/.craft-agent/themes/
+ * Preset themes are stored at ~/.analyst-agent/themes/
  */
 export function getAppThemesDir(): string {
   return APP_THEMES_DIR;
@@ -2871,7 +2954,7 @@ import { copyFileSync } from 'fs';
 const TOOL_ICONS_DIR_NAME = 'tool-icons';
 
 /**
- * Returns the path to the tool-icons directory: ~/.craft-agent/tool-icons/
+ * Returns the path to the tool-icons directory: ~/.analyst-agent/tool-icons/
  */
 export function getToolIconsDir(): string {
   return join(CONFIG_DIR, TOOL_ICONS_DIR_NAME);

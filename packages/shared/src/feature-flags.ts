@@ -42,7 +42,7 @@ export function isDeveloperFeedbackEnabled(): boolean {
  *
  * Defaults to disabled. Override with CRAFT_FEATURE_CRAFT_AGENTS_CLI=1|0.
  */
-export function isCraftAgentsCliEnabled(): boolean {
+export function isAnalystAgentCliEnabled(): boolean {
   const override = parseBooleanEnv(getEnv('CRAFT_FEATURE_CRAFT_AGENTS_CLI'));
   if (override !== undefined) return override;
   return false;
@@ -77,7 +77,7 @@ export const FEATURE_FLAGS = {
    * Defaults to disabled. Override with CRAFT_FEATURE_CRAFT_AGENTS_CLI=1|0.
    */
   get craftAgentsCli(): boolean {
-    return isCraftAgentsCliEnabled();
+    return isAnalystAgentCliEnabled();
   },
   /**
    * Enable embedded server settings page.

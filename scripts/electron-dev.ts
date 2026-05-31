@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Cross-platform electron dev script
  * Replaces platform-specific npm scripts with a unified TypeScript solution
  */
@@ -58,11 +58,11 @@ async function ensureBundledUvForCurrentPlatform(): Promise<void> {
   const uvPath = join(ELECTRON_DIR, "resources", "bin", platformKey, uvBinary);
 
   if (existsSync(uvPath)) {
-    console.log(`✅ Bundled uv present: ${uvPath}`);
+    console.log(`鉁?Bundled uv present: ${uvPath}`);
     return;
   }
 
-  console.log(`⬇️  Bundled uv missing, bootstrapping ${platformKey}...`);
+  console.log(`猬囷笍  Bundled uv missing, bootstrapping ${platformKey}...`);
   await downloadUv({
     platform,
     arch,
@@ -75,7 +75,7 @@ async function ensureBundledUvForCurrentPlatform(): Promise<void> {
 }
 
 // Multi-instance detection (matches detect-instance.sh logic)
-// Detects instance number from folder name suffix (e.g., craft-agents-1 → instance 1)
+// Detects instance number from folder name suffix (e.g., analyst-agent-1 鈫?instance 1)
 function detectInstance(): void {
   // Don't override if already set (e.g., by sourcing detect-instance.sh first)
   if (process.env.CRAFT_VITE_PORT) return;
@@ -87,10 +87,10 @@ function detectInstance(): void {
     const instanceNum = match[1];
     process.env.CRAFT_INSTANCE_NUMBER = instanceNum;
     process.env.CRAFT_VITE_PORT = `${instanceNum}173`;
-    process.env.CRAFT_APP_NAME = `Craft Agents [${instanceNum}]`;
-    process.env.CRAFT_CONFIG_DIR = join(process.env.HOME || "", `.craft-agent-${instanceNum}`);
-    process.env.CRAFT_DEEPLINK_SCHEME = `craftagents${instanceNum}`;
-    console.log(`🔢 Instance ${instanceNum} detected: port=${process.env.CRAFT_VITE_PORT}, config=${process.env.CRAFT_CONFIG_DIR}`);
+    process.env.ANALYST_APP_NAME = `Analyst Agent [${instanceNum}]`;
+    process.env.ANALYST_CONFIG_DIR = join(process.env.HOME || "", `.analyst-agent-${instanceNum}`);
+    process.env.ANALYST_DEEPLINK_SCHEME = `analystagent${instanceNum}`;
+    console.log(`馃敘 Instance ${instanceNum} detected: port=${process.env.CRAFT_VITE_PORT}, config=${process.env.ANALYST_CONFIG_DIR}`);
   }
 }
 
@@ -115,7 +115,7 @@ function loadEnvFile(): void {
         }
       }
     }
-    console.log("📄 Loaded .env file");
+    console.log("馃搫 Loaded .env file");
   }
 }
 
@@ -157,7 +157,7 @@ async function killProcessOnPort(port: string): Promise<void> {
       }
 
       if (pids.size > 0) {
-        console.log(`🔪 Killed ${pids.size} process(es) on port ${port}`);
+        console.log(`馃敧 Killed ${pids.size} process(es) on port ${port}`);
       }
     } else {
       // Mac/Linux: use lsof and kill
@@ -170,7 +170,7 @@ async function killProcessOnPort(port: string): Promise<void> {
       await lsof.exited;
 
       if (output.trim()) {
-        console.log(`🔪 Killed process(es) on port ${port}`);
+        console.log(`馃敧 Killed process(es) on port ${port}`);
       }
     }
   } catch {
@@ -183,7 +183,7 @@ function cleanViteCache(): void {
   const viteCacheDir = join(ELECTRON_DIR, "node_modules/.vite");
   if (existsSync(viteCacheDir)) {
     rmSync(viteCacheDir, { recursive: true, force: true });
-    console.log("🧹 Cleaned Vite cache");
+    console.log("馃Ч Cleaned Vite cache");
   }
 }
 
@@ -193,7 +193,7 @@ function copyResources(): void {
   const destDir = join(ELECTRON_DIR, "dist/resources");
   if (existsSync(srcDir)) {
     cpSync(srcDir, destDir, { recursive: true, force: true });
-    console.log("📦 Copied resources to dist");
+    console.log("馃摝 Copied resources to dist");
   }
 }
 
@@ -201,7 +201,7 @@ function copyResources(): void {
 // `scripts/build-wa-worker.ts` as a subprocess so the dev path stays in
 // sync with the packaged/CI build. Cheap (~70ms) so we always rebuild.
 async function buildWaWorker(): Promise<void> {
-  console.log("📨 Building WhatsApp worker...");
+  console.log("馃摠 Building WhatsApp worker...");
   const proc = spawn({
     cmd: ["bun", "run", "scripts/build-wa-worker.ts"],
     cwd: ROOT_DIR,
@@ -210,14 +210,14 @@ async function buildWaWorker(): Promise<void> {
   });
   const exitCode = await proc.exited;
   if (exitCode !== 0) {
-    console.error("❌ WhatsApp worker build failed");
+    console.error("鉂?WhatsApp worker build failed");
     process.exit(1);
   }
 }
 
 // Build MCP servers for Codex sessions and Pi agent server (one-time, no watch needed)
 async function buildMcpServers(): Promise<void> {
-  console.log("🌉 Building MCP servers and Pi agent server...");
+  console.log("馃寜 Building MCP servers and Pi agent server...");
 
   // Ensure dist directories exist
   const sessionDistDir = join(SESSION_SERVER_DIR, "dist");
@@ -225,7 +225,7 @@ async function buildMcpServers(): Promise<void> {
   if (!existsSync(sessionDistDir)) mkdirSync(sessionDistDir, { recursive: true });
   if (!existsSync(piDistDir)) mkdirSync(piDistDir, { recursive: true });
 
-  // Build session MCP server (esbuild, packages external — deps resolve from root node_modules)
+  // Build session MCP server (esbuild, packages external 鈥?deps resolve from root node_modules)
   const sessionResult = await runEsbuild(
     "packages/session-mcp-server/src/index.ts",
     "packages/session-mcp-server/dist/index.js",
@@ -234,10 +234,10 @@ async function buildMcpServers(): Promise<void> {
   );
 
   if (!sessionResult.success) {
-    console.error("❌ Session MCP server build failed:", sessionResult.error);
+    console.error("鉂?Session MCP server build failed:", sessionResult.error);
     process.exit(1);
   }
-  console.log("✅ Session MCP server built");
+  console.log("鉁?Session MCP server built");
 
   // Build Pi agent server with bun (not esbuild) because its Pi SDK deps are ESM-only.
   // esbuild with packages:external leaves them as require() calls which fail at runtime.
@@ -245,12 +245,12 @@ async function buildMcpServers(): Promise<void> {
   if (existsSync(join(PI_AGENT_SERVER_DIR, "src"))) {
     const piResult = await buildPiAgentServer();
     if (!piResult.success) {
-      console.error("❌ Pi agent server build failed:", piResult.error);
+      console.error("鉂?Pi agent server build failed:", piResult.error);
       process.exit(1);
     }
-    console.log("✅ Pi agent server built");
+    console.log("鉁?Pi agent server built");
   } else {
-    console.log("⏭️  Pi agent server skipped (package not found)");
+    console.log("鈴笍  Pi agent server skipped (package not found)");
   }
 }
 
@@ -285,8 +285,9 @@ function getElectronEnv(): Record<string, string> {
     ...process.env as Record<string, string>,
     VITE_DEV_SERVER_URL: `http://localhost:${vitePort}`,
     CRAFT_CONFIG_DIR: process.env.CRAFT_CONFIG_DIR || "",
-    CRAFT_APP_NAME: process.env.CRAFT_APP_NAME || "Craft Agents",
-    CRAFT_DEEPLINK_SCHEME: process.env.CRAFT_DEEPLINK_SCHEME || "craftagents",
+    ANALYST_CONFIG_DIR: process.env.ANALYST_CONFIG_DIR || "",
+    ANALYST_APP_NAME: process.env.ANALYST_APP_NAME || process.env.CRAFT_APP_NAME || "Analyst Agent",
+    ANALYST_DEEPLINK_SCHEME: process.env.ANALYST_DEEPLINK_SCHEME || process.env.CRAFT_DEEPLINK_SCHEME || "analystagent",
     CRAFT_INSTANCE_NUMBER: process.env.CRAFT_INSTANCE_NUMBER || "",
   };
 }
@@ -320,7 +321,7 @@ async function runEsbuild(
 // Build Pi agent server using bun instead of esbuild.
 // The Pi SDK (@mariozechner/pi-coding-agent) is ESM-only, and esbuild with
 // packages:external leaves ESM imports as require() calls that fail at runtime.
-// Bun's bundler handles ESM→ESM bundling correctly.
+// Bun's bundler handles ESM鈫扙SM bundling correctly.
 async function buildPiAgentServer(): Promise<{ success: boolean; error?: string }> {
   try {
     const proc = spawn({
@@ -341,7 +342,7 @@ async function buildPiAgentServer(): Promise<{ success: boolean; error?: string 
 }
 
 // Verify a built JavaScript bundle is parseable. `node --check` performs
-// syntax-only validation — it does NOT execute module-level code or resolve
+// syntax-only validation 鈥?it does NOT execute module-level code or resolve
 // `require()`, so Electron-specific top-level requires (e.g. @sentry/electron)
 // are safe. This catches truncated writes, FS corruption, and edge cases that
 // esbuild's build-success signal doesn't cover.
@@ -403,7 +404,7 @@ async function waitForFileStable(filePath: string, timeoutMs = 10000): Promise<b
 }
 
 async function main(): Promise<void> {
-  console.log("🚀 Starting Electron dev environment...\n");
+  console.log("馃殌 Starting Electron dev environment...\n");
 
   // Setup
   detectInstance();
@@ -434,7 +435,7 @@ async function main(): Promise<void> {
   // =========================================================
   // PHASE 1: Initial build (one-shot, wait for completion)
   // =========================================================
-  console.log("🔨 Building main process...");
+  console.log("馃敤 Building main process...");
 
   const mainCjsPath = join(DIST_DIR, "main.cjs");
   const preloadCjsPath = join(DIST_DIR, "bootstrap-preload.cjs");
@@ -464,22 +465,22 @@ async function main(): Promise<void> {
   ]);
 
   if (!mainResult.success) {
-    console.error("❌ Main process build failed:", mainResult.error);
+    console.error("鉂?Main process build failed:", mainResult.error);
     process.exit(1);
   }
 
   if (!preloadResult.success) {
-    console.error("❌ Preload build failed:", preloadResult.error);
+    console.error("鉂?Preload build failed:", preloadResult.error);
     process.exit(1);
   }
 
   if (!toolbarPreloadResult.success) {
-    console.error("❌ Browser toolbar preload build failed:", toolbarPreloadResult.error);
+    console.error("鉂?Browser toolbar preload build failed:", toolbarPreloadResult.error);
     process.exit(1);
   }
 
   // Wait for files to stabilize (filesystem flush)
-  console.log("⏳ Waiting for build files to stabilize...");
+  console.log("鈴?Waiting for build files to stabilize...");
   const [mainStable, preloadStable, toolbarPreloadStable] = await Promise.all([
     waitForFileStable(mainCjsPath),
     waitForFileStable(preloadCjsPath),
@@ -487,12 +488,12 @@ async function main(): Promise<void> {
   ]);
 
   if (!mainStable || !preloadStable || !toolbarPreloadStable) {
-    console.error("❌ Build files did not stabilize");
+    console.error("鉂?Build files did not stabilize");
     process.exit(1);
   }
 
   // Verify the built files are valid JavaScript
-  console.log("🔍 Verifying build output...");
+  console.log("馃攳 Verifying build output...");
   const [mainValid, preloadValid, toolbarPreloadValid] = await Promise.all([
     verifyJsFile(mainCjsPath),
     verifyJsFile(preloadCjsPath),
@@ -500,26 +501,26 @@ async function main(): Promise<void> {
   ]);
 
   if (!mainValid.valid) {
-    console.error("❌ main.cjs is invalid:", mainValid.error);
+    console.error("鉂?main.cjs is invalid:", mainValid.error);
     process.exit(1);
   }
 
   if (!preloadValid.valid) {
-    console.error("❌ bootstrap-preload.cjs is invalid:", preloadValid.error);
+    console.error("鉂?bootstrap-preload.cjs is invalid:", preloadValid.error);
     process.exit(1);
   }
 
   if (!toolbarPreloadValid.valid) {
-    console.error("❌ browser-toolbar-preload.cjs is invalid:", toolbarPreloadValid.error);
+    console.error("鉂?browser-toolbar-preload.cjs is invalid:", toolbarPreloadValid.error);
     process.exit(1);
   }
 
-  console.log("✅ Initial build complete and verified\n");
+  console.log("鉁?Initial build complete and verified\n");
 
   // =========================================================
   // PHASE 2: Start dev servers with watch mode
   // =========================================================
-  console.log("📡 Starting dev servers...\n");
+  console.log("馃摗 Starting dev servers...\n");
 
   const processes: Subprocess[] = [];
   const esbuildContexts: esbuild.BuildContext[] = [];
@@ -549,7 +550,7 @@ async function main(): Promise<void> {
   });
   await mainContext.watch();
   esbuildContexts.push(mainContext);
-  console.log("👀 Watching main process...");
+  console.log("馃憖 Watching main process...");
 
   // 3. Preload watcher (using esbuild watch API)
   const preloadContext = await esbuild.context({
@@ -563,7 +564,7 @@ async function main(): Promise<void> {
   });
   await preloadContext.watch();
   esbuildContexts.push(preloadContext);
-  console.log("👀 Watching preload...");
+  console.log("馃憖 Watching preload...");
 
   // 4. Browser toolbar preload watcher (dedicated browser window bridge)
   const toolbarPreloadContext = await esbuild.context({
@@ -577,10 +578,10 @@ async function main(): Promise<void> {
   });
   await toolbarPreloadContext.watch();
   esbuildContexts.push(toolbarPreloadContext);
-  console.log("👀 Watching browser toolbar preload...");
+  console.log("馃憖 Watching browser toolbar preload...");
 
   // 5. Start Electron (build already verified)
-  console.log("🚀 Starting Electron...\n");
+  console.log("馃殌 Starting Electron...\n");
 
   const electronProc = spawn({
     cmd: [ELECTRON_BIN, "apps/electron"],
@@ -594,7 +595,7 @@ async function main(): Promise<void> {
 
   // Handle cleanup on exit
   const cleanup = async () => {
-    console.log("\n🛑 Shutting down...");
+    console.log("\n馃洃 Shutting down...");
     // Dispose esbuild contexts
     for (const ctx of esbuildContexts) {
       try {
@@ -628,6 +629,6 @@ async function main(): Promise<void> {
 }
 
 main().catch((err) => {
-  console.error("❌ Error:", err);
+  console.error("鉂?Error:", err);
   process.exit(1);
 });

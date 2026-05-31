@@ -1,14 +1,14 @@
 {
-  "name": "@craft-agent/electron",
+  "name": "@analyst-agent/electron",
   "version": "0.9.5",
-  "description": "Electron desktop app for Craft Agents",
+  "description": "Electron desktop app for Analyst Agent",
   "main": "dist/main.cjs",
   "private": true,
   "author": {
-    "name": "Craft Docs Ltd.",
-    "email": "support@craft.do"
+    "name": "Analyst Agent",
+    "email": "support@analystagent.local"
   },
-  "homepage": "https://agents.craft.do",
+  "homepage": "https://github.com/yifuwang0421/AnalystAgent",
   "license": "Apache-2.0",
   "type": "module",
   "engines": {

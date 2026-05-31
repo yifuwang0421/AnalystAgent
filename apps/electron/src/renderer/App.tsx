@@ -74,7 +74,7 @@ import { rendererLog } from '@/lib/logger'
 import { ActionRegistryProvider } from '@/actions'
 import { toast } from 'sonner'
 
-type AppState = 'loading' | 'onboarding' | 'reauth' | 'workspace-picker' | 'ready'
+type AppState = 'loading' | 'startup-error' | 'onboarding' | 'reauth' | 'workspace-picker' | 'ready'
 
 /** Type for the Jotai store returned by useStore() */
 type JotaiStore = ReturnType<typeof getDefaultStore>
@@ -221,6 +221,56 @@ function SessionLoadErrorScreen({
   )
 }
 
+function StartupErrorScreen({
+  message,
+  onRetry,
+}: {
+  message: string
+  onRetry: () => void
+}) {
+  const { t } = useTranslation()
+
+  return (
+    <div className="flex h-full items-center justify-center p-6">
+      <div className="max-w-lg rounded-xl border border-border/50 bg-background shadow-minimal p-6 text-center">
+        <h2 className="text-lg font-semibold text-foreground">{t("errors.failedToStartApp")}</h2>
+        <p className="mt-2 text-sm text-foreground/60">
+          {t("errors.failedToStartAppDesc")}
+        </p>
+        <p className="mt-3 rounded-lg bg-foreground/5 px-3 py-2 text-left text-xs text-foreground/70 break-words">
+          {message}
+        </p>
+        <button
+          type="button"
+          onClick={onRetry}
+          className="mt-4 inline-flex h-8 items-center justify-center rounded-[8px] bg-foreground text-background px-3 text-sm font-medium hover:opacity-90 transition-opacity"
+        >
+          {t("errors.retryStartup")}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function withStartupTimeout<T>(promise: Promise<T>, label: string, timeoutMs = 15000): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = window.setTimeout(() => {
+      reject(new Error(`${label} timed out after ${timeoutMs}ms`))
+    }, timeoutMs)
+
+    promise.then(
+      (value) => {
+        window.clearTimeout(timer)
+        resolve(value)
+      },
+      (error) => {
+        window.clearTimeout(timer)
+        reject(error)
+      }
+    )
+  })
+}
+
 export default function App() {
   const { t } = useTranslation()
 
@@ -234,6 +284,7 @@ export default function App() {
 
   // App state: loading -> check auth -> onboarding or ready
   const [appState, setAppState] = useState<AppState>('loading')
+  const [startupError, setStartupError] = useState<string | null>(null)
   const [setupNeeds, setSetupNeeds] = useState<SetupNeeds | null>(null)
 
   // Per-session Jotai atom setters for isolated updates
@@ -658,10 +709,10 @@ export default function App() {
     const initialize = async () => {
       try {
         // Get this window's workspace ID (passed via URL query param from main process)
-        const wsId = await window.electronAPI.getWindowWorkspace()
+        const wsId = await withStartupTimeout(window.electronAPI.getWindowWorkspace(), 'getWindowWorkspace')
         setWindowWorkspaceId(wsId)
 
-        const needs = await window.electronAPI.getSetupNeeds()
+        const needs = await withStartupTimeout(window.electronAPI.getSetupNeeds(), 'getSetupNeeds')
         setSetupNeeds(needs)
 
         if (needs.isFullyConfigured) {
@@ -678,8 +729,8 @@ export default function App() {
         }
       } catch (error) {
         console.error('Failed to check auth state:', error)
-        // If check fails, show onboarding to be safe
-        setAppState('onboarding')
+        setStartupError(error instanceof Error ? error.message : String(error))
+        setAppState('startup-error')
       }
     }
 
@@ -1897,6 +1948,15 @@ export default function App() {
   // Loading state - show splash screen
   if (appState === 'loading') {
     return <SplashScreen isExiting={false} />
+  }
+
+  if (appState === 'startup-error') {
+    return (
+      <StartupErrorScreen
+        message={startupError ?? t("errors.unknownStartupError")}
+        onRetry={() => window.location.reload()}
+      />
+    )
   }
 
   // Reauth state - session expired, need to re-login

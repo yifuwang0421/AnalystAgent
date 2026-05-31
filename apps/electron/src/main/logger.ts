@@ -2,11 +2,14 @@ import log from 'electron-log/main'
 import { appendFileSync, existsSync, mkdirSync, renameSync, rmSync, statSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { homedir } from 'node:os'
+import { ensureElectronBranding } from './branding'
 import type {
   MessagingLogContext,
   MessagingLogMeta,
   MessagingLogger,
 } from '@craft-agent/messaging-gateway'
+
+ensureElectronBranding()
 
 /**
  * Resolve debug mode deterministically across runtimes.
@@ -81,7 +84,7 @@ export const searchLog = log.scope('search')
  * Kept outside the Electron-managed logs folder so messaging issues can be
  * inspected independently at a stable path across debug and production builds.
  */
-export const messagingGatewayLogPath = join(homedir(), '.craft-agent', 'logs', 'messaging-gateway.log')
+export const messagingGatewayLogPath = join(homedir(), '.analyst-agent', 'logs', 'messaging-gateway.log')
 const messagingGatewayBackupPath = `${messagingGatewayLogPath}.1`
 const MESSAGING_LOG_MAX_BYTES = 5 * 1024 * 1024 // 5MB
 

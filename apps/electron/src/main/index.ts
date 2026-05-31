@@ -1,4 +1,4 @@
-// Load user's shell environment first (before other imports that may use env)
+﻿// Load user's shell environment first (before other imports that may use env)
 // This ensures tools like Homebrew, nvm, etc. are available to the agent
 import { loadShellEnv } from './shell-env'
 loadShellEnv()
@@ -21,7 +21,7 @@ Sentry.init({
   dsn: process.env.SENTRY_ELECTRON_INGEST_URL,
   environment: app.isPackaged ? 'production' : 'development',
   release: app.getVersion(),
-  // Enabled whenever the ingest URL is available — works in both production (baked via CI)
+  // Enabled whenever the ingest URL is available 鈥?works in both production (baked via CI)
   // and development (injected via .env / 1Password). Filter by environment in Sentry dashboard.
   enabled: !!process.env.SENTRY_ELECTRON_INGEST_URL,
 
@@ -62,7 +62,7 @@ Sentry.init({
 import { setupI18n, i18n } from '@craft-agent/shared/i18n'
 setupI18n()
 
-// Set anonymous machine ID for Sentry user tracking (no PII — just a hash).
+// Set anonymous machine ID for Sentry user tracking (no PII 鈥?just a hash).
 // Uses hostname + homedir to produce a stable per-machine identifier.
 const machineId = createHash('sha256').update(hostname() + homedir()).digest('hex').slice(0, 16)
 Sentry.setUser({ id: machineId })
@@ -98,6 +98,7 @@ import { BrowserPaneManager } from './browser-pane-manager'
 import { OAuthFlowStore } from '@craft-agent/shared/auth'
 import { registerThumbnailScheme, registerThumbnailHandler } from './thumbnail-protocol'
 import log, { isDebugMode, mainLog, getLogFilePath, getMessagingGatewayLogFilePath, messagingGatewayLog } from './logger'
+import { ANALYST_DEEPLINK_SCHEME, ensureElectronBranding } from './branding'
 import { setPerfEnabled, enableDebug } from '@craft-agent/shared/utils'
 import { registerPiModelResolver } from '@craft-agent/shared/config'
 import { getPiModelsForAuthProvider, getAllPiModels } from '@craft-agent/shared/config'
@@ -182,9 +183,9 @@ registerPiModelResolver((piAuthProvider) =>
   piAuthProvider ? getPiModelsForAuthProvider(piAuthProvider) : getAllPiModels()
 )
 
-// Custom URL scheme for deeplinks (e.g., craftagents://auth-complete)
-// Supports multi-instance dev: CRAFT_DEEPLINK_SCHEME env var (craftagents1, craftagents2, etc.)
-const DEEPLINK_SCHEME = process.env.CRAFT_DEEPLINK_SCHEME || 'craftagents'
+// Custom URL scheme for deeplinks (e.g., analystagent://auth-complete).
+// CRAFT_DEEPLINK_SCHEME remains accepted as a compatibility alias for local scripts.
+const DEEPLINK_SCHEME = ANALYST_DEEPLINK_SCHEME
 
 let windowManager: WindowManager | null = null
 let sessionManager: SessionManager | null = null
@@ -196,18 +197,17 @@ let moduleClientResolver: ((webContentsId: number) => string | undefined) | null
 // Messaging gateway: the bootstrap handle is created once sessionManager is
 // available (inside createHandlerDeps) and populated with the WS publisher
 // after bootstrapServer resolves. Both hosts (Electron + standalone) wire
-// through createMessagingBootstrap — do not construct MessagingGatewayRegistry
+// through createMessagingBootstrap 鈥?do not construct MessagingGatewayRegistry
 // directly.
 let messagingHandle: MessagingBootstrapHandle | null = null
 
 // Store pending deep link if app not ready yet (cold start)
 let pendingDeepLink: string | null = null
 
-// Set app name early (before app.whenReady) to ensure correct macOS menu bar title
-// Supports multi-instance dev: CRAFT_APP_NAME env var (e.g., "Craft Agents [1]")
-app.setName(process.env.CRAFT_APP_NAME || 'Craft Agents')
+// Set app identity early so menus, logs, userData, and taskbar metadata align.
+ensureElectronBranding()
 
-// Register as default protocol client for craftagents:// URLs
+// Register as default protocol client for analystagent:// URLs
 // This must be done before app.whenReady() on some platforms
 if (process.defaultApp) {
   // Development mode: need to pass the app path
@@ -219,17 +219,17 @@ if (process.defaultApp) {
   app.setAsDefaultProtocolClient(DEEPLINK_SCHEME)
 }
 
-// Apply network proxy settings early (Node-level only — Electron sessions require app.whenReady)
+// Apply network proxy settings early (Node-level only 鈥?Electron sessions require app.whenReady)
 import { applyConfiguredProxySettings } from './network-proxy'
 void applyConfiguredProxySettings()
 
 // Accept self-signed / untrusted certificates when connecting to a user-configured remote server.
-// Only bypasses cert validation for the exact CRAFT_SERVER_URL origin — all other connections
+// Only bypasses cert validation for the exact CRAFT_SERVER_URL origin 鈥?all other connections
 // use standard certificate verification. Without this, wss:// to self-signed servers fails with
 // ERR_CERT_AUTHORITY_INVALID because Chromium's WebSocket rejects untrusted certs.
 //
 // Electron's certificate-error always reports URLs with https:// scheme, so we normalize
-// wss:// → https:// (and ws:// → http://) to ensure origins compare correctly.
+// wss:// 鈫?https:// (and ws:// 鈫?http://) to ensure origins compare correctly.
 function normalizeOriginForCert(urlStr: string): string {
   const u = new URL(urlStr)
   if (u.protocol === 'wss:') u.protocol = 'https:'
@@ -242,7 +242,7 @@ if (process.env.CRAFT_SERVER_URL) {
   try {
     serverOrigin = normalizeOriginForCert(process.env.CRAFT_SERVER_URL)
   } catch {
-    // Invalid URL — will fail later during connection, no need to handle here
+    // Invalid URL 鈥?will fail later during connection, no need to handle here
   }
   if (serverOrigin) {
     app.on('certificate-error', (event, _webContents, url, _error, _certificate, callback) => {
@@ -253,7 +253,7 @@ if (process.env.CRAFT_SERVER_URL) {
           return
         }
       } catch {
-        // URL parse failure — fall through to default rejection
+        // URL parse failure 鈥?fall through to default rejection
       }
       callback(false)
     })
@@ -261,7 +261,7 @@ if (process.env.CRAFT_SERVER_URL) {
 }
 
 // Register thumbnail:// custom protocol for file preview thumbnails in the sidebar.
-// Must happen before app.whenReady() — Electron requires early scheme registration.
+// Must happen before app.whenReady() 鈥?Electron requires early scheme registration.
 registerThumbnailScheme()
 
 // Handle deeplink on macOS (when app is already running)
@@ -395,10 +395,10 @@ app.whenReady().then(async () => {
   // Ensure default permissions file exists (copies bundled default.json on first run)
   ensureDefaultPermissions()
 
-  // Seed tool icons to ~/.craft-agent/tool-icons/ (copies bundled SVGs on first run)
+  // Seed tool icons to ~/.analyst-agent/tool-icons/ (copies bundled SVGs on first run)
   ensureToolIcons()
 
-  // Seed preset themes to ~/.craft-agent/themes/ (copies bundled theme JSONs on first run)
+  // Seed preset themes to ~/.analyst-agent/themes/ (copies bundled theme JSONs on first run)
   ensurePresetThemes()
 
   // Register thumbnail:// protocol handler (scheme was registered earlier, before app.whenReady)
@@ -445,7 +445,7 @@ app.whenReady().then(async () => {
     // Create the application menu (needs windowManager for New Window action)
     createApplicationMenu(windowManager)
 
-    // When CRAFT_SERVER_URL is set, this Electron instance is a thin client —
+    // When CRAFT_SERVER_URL is set, this Electron instance is a thin client 鈥?
     // it only creates windows whose preload connects to the remote server.
     // Skip server-side initialization (SessionManager, model refresh, platform injection).
     const isClientOnly = !!process.env.CRAFT_SERVER_URL
@@ -455,10 +455,10 @@ app.whenReady().then(async () => {
       mainLog.info(`Client-only mode: CRAFT_SERVER_URL=${process.env.CRAFT_SERVER_URL} (server initialization skipped)`)
     }
 
-    // Initialize notification service (always — triggered by server push events)
+    // Initialize notification service (always 鈥?triggered by server push events)
     initNotificationService(windowManager)
 
-    // Initialize browser pane manager (always — even in headless, for deps wiring)
+    // Initialize browser pane manager (always 鈥?even in headless, for deps wiring)
     browserPaneManager = new BrowserPaneManager()
     browserPaneManager.setWindowManager(windowManager)
     browserPaneManager.registerToolbarIpc()
@@ -475,7 +475,7 @@ app.whenReady().then(async () => {
       captureError: (err) => Sentry.captureException(err),
     })
 
-    // Bootstrap IPC handlers — preload uses sendSync for window-local details
+    // Bootstrap IPC handlers 鈥?preload uses sendSync for window-local details
     ipcMain.on('__get-web-contents-id', (e) => {
       e.returnValue = e.sender.id
     })
@@ -483,7 +483,7 @@ app.whenReady().then(async () => {
       e.returnValue = windowManager?.getWorkspaceForWindow(e.sender.id) ?? ''
     })
 
-    // Transport diagnostics bridge — preload reports remote WS connection state changes
+    // Transport diagnostics bridge 鈥?preload reports remote WS connection state changes
     // so failures are visible in terminal/main.log (not only renderer console).
     ipcMain.on('__transport:status', (_event, payload: unknown) => {
       if (!payload || typeof payload !== 'object') return
@@ -518,7 +518,7 @@ app.whenReady().then(async () => {
       }
     })
 
-    // Dialog bridge — preload capability handlers use ipcRenderer.invoke to
+    // Dialog bridge 鈥?preload capability handlers use ipcRenderer.invoke to
     // call main-process-only dialog APIs (dialog, BrowserWindow).
     ipcMain.handle('__dialog:showMessageBox', async (event, spec) => {
       const win = BrowserWindow.fromWebContents(event.sender)
@@ -571,7 +571,7 @@ app.whenReady().then(async () => {
       // Pre-import power manager (async import needed for applyPlatformToSubsystems)
       const { onSessionStarted, onSessionStopped } = await import('./power-manager')
 
-      // Client ID tracking for Electron IPC bridge (webContentsId → clientId)
+      // Client ID tracking for Electron IPC bridge (webContentsId 鈫?clientId)
       const clientMap = new Map<number, string>()
       const resolveClientId = (wcId: number) => clientMap.get(wcId)
 
@@ -605,7 +605,7 @@ app.whenReady().then(async () => {
       }
 
       if (serverModeEnabled) {
-        mainLog.info(`[server-mode] Enabled — binding ${rpcHost}:${rpcPort}${tls ? ' (TLS)' : ''}`)
+        mainLog.info(`[server-mode] Enabled 鈥?binding ${rpcHost}:${rpcPort}${tls ? ' (TLS)' : ''}`)
       }
 
       // Bootstrap the WS RPC server via shared bootstrap function.
@@ -650,13 +650,13 @@ app.whenReady().then(async () => {
             sessionManager: sm,
             credentialManager: getCredentialManager(),
             getMessagingDir: (wsId: string) =>
-              join(homedir(), '.craft-agent', 'workspaces', wsId, 'messaging'),
+              join(homedir(), '.analyst-agent', 'workspaces', wsId, 'messaging'),
             getLegacyMessagingDir: (wsId: string) => {
               const ws = getWorkspaces().find((w) => w.id === wsId)
               return ws ? join(ws.rootPath, 'messaging') : undefined
             },
             // Route messaging diagnostics through the dedicated messaging log
-            // at ~/.craft-agent/logs/messaging-gateway.log.
+            // at ~/.analyst-agent/logs/messaging-gateway.log.
             logger: messagingGatewayLog,
             // WhatsApp worker runs under Electron's embedded Node via
             // ELECTRON_RUN_AS_NODE (WhatsAppAdapter defaults nodeBin to
@@ -718,7 +718,7 @@ app.whenReady().then(async () => {
       moduleClientResolver = resolveClientId
 
       // -----------------------------------------------------------------------
-      // Messaging Gateway — attach the WS publisher, init local workspaces,
+      // Messaging Gateway 鈥?attach the WS publisher, init local workspaces,
       // install the fan-out event sink. The handle was created inside
       // createHandlerDeps so the registry could be wired into HandlerDeps.
       // -----------------------------------------------------------------------
@@ -729,14 +729,14 @@ app.whenReady().then(async () => {
 
         messagingHandle.setPublisher(instance.wsServer.push.bind(instance.wsServer))
 
-        // Skip remote-owned workspaces — messaging runs on the remote server.
+        // Skip remote-owned workspaces 鈥?messaging runs on the remote server.
         const localWorkspaceIds = getWorkspaces()
           .filter((ws) => !ws.remoteServer)
           .map((ws) => ws.id)
         await messagingHandle.initializeWorkspaces(localWorkspaceIds)
 
         // Compose fan-out event sink: RPC push + messaging gateway dispatch.
-        // Always install — this lets workspaces enable messaging at runtime
+        // Always install 鈥?this lets workspaces enable messaging at runtime
         // without a process restart.
         const baseSink = instance.wsServer.push.bind(instance.wsServer)
         instance.sessionManager.setEventSink(messagingHandle.wrapSink(baseSink))
@@ -747,7 +747,7 @@ app.whenReady().then(async () => {
         mainLog.error('[messaging] Gateway initialization failed:', err)
       }
 
-      // IPC handlers — preload uses sendSync to get WS connection details
+      // IPC handlers 鈥?preload uses sendSync to get WS connection details
 
       // Remove workspace from config (cleanup stale entries)
       ipcMain.handle('workspace:remove', async (_event, workspaceId: string) => {
@@ -755,7 +755,7 @@ app.whenReady().then(async () => {
         return remove(workspaceId)
       })
 
-      // Cross-server RPC — invoke a channel on an arbitrary remote server
+      // Cross-server RPC 鈥?invoke a channel on an arbitrary remote server
       ipcMain.handle('server:invokeOnServer', async (_event, url: string, token: string, channel: string, ...args: unknown[]) => {
         const { connectToRemote } = await import('./handlers/workspace')
         const { client, error } = await connectToRemote(url, token)
@@ -767,7 +767,7 @@ app.whenReady().then(async () => {
         }
       })
 
-      // Transfer session to another workspace — orchestrated in main process
+      // Transfer session to another workspace 鈥?orchestrated in main process
       // so large bundles can be moved directly between owning servers.
       ipcMain.handle('session:transferToRemoteWorkspace', async (_event, sessionId: string, targetWorkspaceId: string, sessionIndex?: number, sessionCount?: number) => {
         const idx = sessionIndex ?? 0
@@ -848,7 +848,7 @@ app.whenReady().then(async () => {
           }
 
           if (payloadSize < CHUNKED_TRANSFER_THRESHOLD) {
-            console.log(`[Transfer] Bundle size: ${payloadMB}MB (< 5MB threshold) → using direct RPC`)
+            console.log(`[Transfer] Bundle size: ${payloadMB}MB (< 5MB threshold) 鈫?using direct RPC`)
             emitProgress(0, 1)
             const result = await client.invoke('sessions:import', remoteWorkspaceId, bundle, 'fork')
             emitProgress(1, 1)
@@ -856,7 +856,7 @@ app.whenReady().then(async () => {
           }
 
           const chunkCount = getChunkCount(payloadSize)
-          console.log(`[Transfer] Bundle size: ${payloadMB}MB (>= 5MB threshold) → using chunked transfer (${chunkCount} chunks)`)
+          console.log(`[Transfer] Bundle size: ${payloadMB}MB (>= 5MB threshold) 鈫?using chunked transfer (${chunkCount} chunks)`)
           return await invokeChunked(
             client,
             'sessions:import',
@@ -870,7 +870,7 @@ app.whenReady().then(async () => {
         }
       })
 
-      // App relaunch (for server config changes — NOT an update install)
+      // App relaunch (for server config changes 鈥?NOT an update install)
       ipcMain.handle('app:relaunch', () => {
         app.relaunch()
         app.exit(0)
@@ -896,7 +896,7 @@ app.whenReady().then(async () => {
         e.returnValue = ws?.remoteServer ?? null
       })
 
-      // Server config RPC handlers (LOCAL_ONLY — Electron-specific)
+      // Server config RPC handlers (LOCAL_ONLY 鈥?Electron-specific)
       const runningServerState = {
         host: rpcHost,
         port: instance.port,
@@ -949,7 +949,7 @@ app.whenReady().then(async () => {
         }
 
         // Only compare port/tls/token when at least one side has server mode enabled.
-        // When both are disabled, the running port is random — comparing it to the
+        // When both are disabled, the running port is random 鈥?comparing it to the
         // saved default (9100) would always produce a false "restart required" banner.
         const needsRestart = saved.enabled !== runningServerState.enabled
           || ((saved.enabled || runningServerState.enabled) && (
@@ -970,7 +970,7 @@ app.whenReady().then(async () => {
         }
       })
 
-      // TLS enforcement — warn when server mode binds to a network address without TLS
+      // TLS enforcement 鈥?warn when server mode binds to a network address without TLS
       // Mirrors the hard guard in packages/server/src/index.ts but warns instead of blocking,
       // since the user explicitly enabled server mode via UI (may be on a trusted LAN).
       const isInsecureBind = serverModeEnabled && !tls
@@ -999,14 +999,14 @@ app.whenReady().then(async () => {
     }
 
     // Create initial windows (restores from saved state or opens first workspace)
-    // In headless mode the server runs without any UI — skip window creation.
+    // In headless mode the server runs without any UI 鈥?skip window creation.
     if (!isHeadless) {
       await createInitialWindows()
     }
 
     // Run credential health check at startup to detect issues early
     // (corruption, machine migration, missing credentials for default connection)
-    // Skip in thin-client mode — credentials are managed by the remote server.
+    // Skip in thin-client mode 鈥?credentials are managed by the remote server.
     if (!isClientOnly) {
       try {
         const { getCredentialManager } = await import('@craft-agent/shared/credentials')
@@ -1014,7 +1014,7 @@ app.whenReady().then(async () => {
         const health = await credentialManager.checkHealth()
         if (!health.healthy) {
           mainLog.warn('Credential health check failed:', health.issues)
-          // Issues will be displayed in Settings → AI when user navigates there
+          // Issues will be displayed in Settings 鈫?AI when user navigates there
         }
       } catch (err) {
         mainLog.error('Credential health check error:', err)
@@ -1022,7 +1022,7 @@ app.whenReady().then(async () => {
     }
 
     // Initialize power manager (loads setting, must happen after config is available)
-    // Non-critical — powerSaveBlocker may not work on headless/xvfb setups
+    // Non-critical 鈥?powerSaveBlocker may not work on headless/xvfb setups
     try {
       const { initPowerManager } = await import('./power-manager')
       await initPowerManager()
@@ -1030,7 +1030,7 @@ app.whenReady().then(async () => {
       mainLog.warn('[power] Power manager init failed (non-critical):', err instanceof Error ? err.message : err)
     }
 
-    // Set Sentry context tags for error grouping (no PII — just config classification).
+    // Set Sentry context tags for error grouping (no PII 鈥?just config classification).
     // Runs after init so config and auth state are available.
     // Derives values from the default LLM connection instead of legacy config fields.
     try {
@@ -1190,7 +1190,7 @@ app.on('before-quit', async (event) => {
   }
 })
 
-// Handle uncaught exceptions — forward to Sentry explicitly since registering
+// Handle uncaught exceptions 鈥?forward to Sentry explicitly since registering
 // a custom handler can interfere with @sentry/electron's automatic capture.
 process.on('uncaughtException', (error) => {
   mainLog.error('Uncaught exception:', error)

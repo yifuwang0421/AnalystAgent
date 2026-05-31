@@ -276,7 +276,7 @@ export const ROOT_MENU = {
     type: 'action',
     id: 'quit',
     actionId: 'app.quit',
-    labelKey: 'menu.quitCraftAgents',
+    labelKey: 'menu.quitAnalystAgent',
     shortcut: 'CmdOrCtrl+Q',
     shortcutDisplayMac: '⌘Q',
     shortcutDisplayOther: 'Ctrl+Q',
@@ -299,7 +299,7 @@ export const HELP_LINKS: MenuItemUrl[] = [
     type: 'url',
     id: 'helpAndDocs',
     labelKey: 'menu.helpAndDocs',
-    url: 'https://agents.craft.do/docs',
+    url: 'https://github.com/yifuwang0421/AnalystAgent',
     icon: 'HelpCircle',
   },
 ]
