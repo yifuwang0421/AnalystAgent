@@ -27,6 +27,14 @@ export interface LocalMcpConfig {
   enabled: boolean;
 }
 
+export interface FinanceWorkspaceConfig {
+  enabled: boolean;
+  researchDirectory: string;
+  marketScope: 'cn-hk' | 'us' | 'global';
+  dataProvider: 'ifind' | 'yfinance' | 'akshare' | 'local' | 'none';
+  knowledgeBaseEnabled: boolean;
+}
+
 /**
  * Workspace configuration (stored in config.json)
  */
@@ -56,6 +64,8 @@ export interface WorkspaceConfig {
    * Resolution order: ENV (CRAFT_LOCAL_MCP_ENABLED) > workspace config > default (true)
    */
   localMcpServers?: LocalMcpConfig;
+
+  finance?: FinanceWorkspaceConfig;
 
   createdAt: number;
   updatedAt: number;

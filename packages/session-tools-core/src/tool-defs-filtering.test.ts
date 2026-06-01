@@ -43,6 +43,18 @@ describe('session tool filtering helpers', () => {
     expect(names.includes('send_developer_feedback')).toBe(false);
   });
 
+  it('exposes finance research tools through the canonical registry and JSON schema', () => {
+    const names = getSessionToolNames();
+    const jsonNames = getToolDefsAsJsonSchema({ prefix: 'mcp__session__' }).map(d => d.name);
+
+    expect(names.has('research_workflow')).toBe(true);
+    expect(names.has('finance_market_data')).toBe(true);
+    expect(names.has('knowledge_search')).toBe(true);
+    expect(jsonNames).toContain('mcp__session__research_workflow');
+    expect(jsonNames).toContain('mcp__session__finance_market_data');
+    expect(jsonNames).toContain('mcp__session__knowledge_search');
+  });
+
   it('all canonical session tools declare safeMode metadata', () => {
     for (const def of SESSION_TOOL_DEFS) {
       expect(def.safeMode === 'allow' || def.safeMode === 'block').toBe(true);
@@ -57,6 +69,9 @@ describe('session tool filtering helpers', () => {
     expect(allowed.has('call_llm')).toBe(true);
     expect(allowed.has('browser_tool')).toBe(true);
     expect(allowed.has('script_sandbox')).toBe(true);
+    expect(allowed.has('research_workflow')).toBe(true);
+    expect(allowed.has('finance_market_data')).toBe(true);
+    expect(allowed.has('knowledge_search')).toBe(true);
 
     expect(blocked.has('source_oauth_trigger')).toBe(true);
     expect(blocked.has('source_credential_prompt')).toBe(true);

@@ -165,6 +165,13 @@ export {
   handleRenderTemplate,
   // Send Developer Feedback
   handleSendDeveloperFeedback,
+  // Finance Research Tools
+  handleResearchWorkflow,
+  validateEvidenceLedger,
+  handleFinanceMarketData,
+  buildProviderAttempts,
+  normalizeFinancePayload,
+  handleKnowledgeSearch,
 } from './handlers/index.ts';
 
 export type {
@@ -183,7 +190,31 @@ export type {
   ScriptSandboxArgs,
   RenderTemplateArgs,
   SendDeveloperFeedbackArgs,
+  ResearchWorkflowArgs,
+  ResearchTaskType,
+  EvidenceLedgerEntry,
+  FinanceMarketDataArgs,
+  FinanceProvider,
+  FinanceRequestType,
+  FinanceMarketScope,
+  KnowledgeSearchArgs,
 } from './handlers/index.ts';
+
+export {
+  ANALYST_AGENT_MANAGER_ID,
+  ANALYST_MANAGER_PROMPT,
+  ANALYST_RESEARCH_GUARDRAILS,
+  ANALYST_SUBAGENT_ROLES,
+  ANALYST_SUBAGENT_ROLE_BY_ID,
+  SUBAGENT_DELIVERABLE_CONTRACT,
+  buildAnalystRolePrompt,
+  getAnalystSubAgentRole,
+} from './analyst-roles.ts';
+
+export type {
+  AnalystSubAgentId,
+  AnalystSubAgentRole,
+} from './analyst-roles.ts';
 
 // Tool definitions — single source of truth
 export {
@@ -200,6 +231,9 @@ export {
   TransformDataSchema,
   ScriptSandboxSchema,
   RenderTemplateSchema,
+  ResearchWorkflowSchema,
+  FinanceMarketDataSchema,
+  KnowledgeSearchSchema,
   // Browser tool schema
   BrowserToolSchema,
   // Developer feedback schema

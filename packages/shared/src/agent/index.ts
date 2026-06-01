@@ -2,6 +2,19 @@
 export * from './claude-agent.ts';
 export * from './conversation-summary.ts';
 
+export {
+  ANALYST_AGENT_MANAGER_ID,
+  ANALYST_MANAGER_PROMPT,
+  ANALYST_RESEARCH_GUARDRAILS,
+  ANALYST_SUBAGENT_ROLES,
+  ANALYST_SUBAGENT_ROLE_BY_ID,
+  SUBAGENT_DELIVERABLE_CONTRACT,
+  buildAnalystRolePrompt,
+  getAnalystSubAgentRole,
+  type AnalystSubAgentId,
+  type AnalystSubAgentRole,
+} from '@craft-agent/session-tools-core';
+
 // Export PiAgent for direct use
 export { PiAgent, PiBackend } from './pi-agent.ts';
 export * from './errors.ts';

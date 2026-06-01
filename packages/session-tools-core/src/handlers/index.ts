@@ -63,6 +63,14 @@ export type { RenderTemplateArgs } from './render-template.ts';
 export { handleSendDeveloperFeedback } from './send-developer-feedback.ts';
 export type { SendDeveloperFeedbackArgs } from './send-developer-feedback.ts';
 
+// Finance Research Tools
+export { handleResearchWorkflow, validateEvidenceLedger } from './research-workflow.ts';
+export type { ResearchWorkflowArgs, ResearchTaskType, EvidenceLedgerEntry } from './research-workflow.ts';
+export { handleFinanceMarketData, buildProviderAttempts, normalizeFinancePayload } from './finance-market-data.ts';
+export type { FinanceMarketDataArgs, FinanceProvider, FinanceRequestType, FinanceMarketScope } from './finance-market-data.ts';
+export { handleKnowledgeSearch } from './knowledge-search.ts';
+export type { KnowledgeSearchArgs } from './knowledge-search.ts';
+
 // Session Self-Management
 export { handleSetSessionLabels } from './set-session-labels.ts';
 export type { SetSessionLabelsArgs } from './set-session-labels.ts';

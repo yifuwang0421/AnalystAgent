@@ -40,6 +40,9 @@ import { handleGetSessionInfo } from './handlers/get-session-info.ts';
 import { handleListSessions } from './handlers/list-sessions.ts';
 import { handleSendAgentMessage } from './handlers/send-agent-message.ts';
 import { handleListMessagingChannels, handleUnbindMessagingChannel } from './handlers/messaging.ts';
+import { handleResearchWorkflow } from './handlers/research-workflow.ts';
+import { handleFinanceMarketData } from './handlers/finance-market-data.ts';
+import { handleKnowledgeSearch } from './handlers/knowledge-search.ts';
 
 // ============================================================
 // Canonical Zod Schemas
@@ -147,6 +150,49 @@ export const RenderTemplateSchema = z.object({
   source: z.string().describe('Source slug (e.g., "linear", "gmail")'),
   template: z.string().describe('Template ID (e.g., "issue-detail", "issue-list")'),
   data: z.record(z.string(), z.unknown()).describe('JSON data to render into the template'),
+});
+
+export const ResearchWorkflowSchema = z.object({
+  taskType: z.enum(['auto', 'company_deep_research', 'earnings_review', 'event_impact', 'industry_scan']).optional()
+    .describe('Research workflow type. Use auto when the user request should be classified from the target text.'),
+  target: z.string().optional().describe('Company, ticker, industry, event, filing, or report reference to research.'),
+  marketScope: z.enum(['cn-hk', 'us', 'global']).optional().describe('Primary market scope for provider routing and assumptions.'),
+  asOfDate: z.string().optional().describe('Research date boundary or event date in YYYY-MM-DD when known. Required for event impact.'),
+  depth: z.enum(['quick', 'standard', 'deep']).optional().describe('Depth of the workflow. Deep tasks should spawn all six subagent sessions.'),
+  outputLanguage: z.enum(['zh-Hans', 'en']).optional().describe('Preferred output language for subagent deliverables and final synthesis.'),
+  writeReport: z.boolean().optional().describe('If true, return a contained report write plan path. This tool does not write the report itself.'),
+});
+
+export const FinanceMarketDataSchema = z.object({
+  requestType: z.enum([
+    'search_instruments',
+    'get_quote',
+    'get_historical_prices',
+    'get_financial_summary',
+    'get_financial_statements',
+    'get_valuation_metrics',
+    'get_news',
+    'get_announcements',
+    'get_macro_data',
+    'get_technical_indicators',
+  ]).describe('Normalized finance data request type.'),
+  query: z.string().optional().describe('Freeform query, company name, macro indicator, news topic, or search term.'),
+  symbol: z.string().optional().describe('Ticker, code, ts_code, or provider-specific symbol when known.'),
+  assetType: z.enum(['stock', 'fund', 'macro', 'auto']).optional().describe('Asset type hint for provider/tool routing.'),
+  provider: z.enum(['auto', 'ifind', 'tushare', 'yfinance', 'edgartools', 'akshare', 'baostock', 'python']).optional()
+    .describe('Provider override. Use auto unless the user or task requires a specific source.'),
+  marketScope: z.enum(['cn-hk', 'us', 'global']).optional().describe('Market scope hint used by the provider router.'),
+  startDate: z.string().optional().describe('Start date in YYYY-MM-DD or provider-compatible format.'),
+  endDate: z.string().optional().describe('End date in YYYY-MM-DD or provider-compatible format.'),
+  period: z.string().optional().describe('Financial period or historical range when a provider supports it.'),
+  statementType: z.enum(['income', 'balance', 'cashflow', 'all']).optional().describe('Statement type for financial statement requests.'),
+});
+
+export const KnowledgeSearchSchema = z.object({
+  query: z.string().describe('Search terms for the workspace research knowledge base.'),
+  maxResults: z.number().min(1).max(20).optional().describe('Maximum hits to return, capped at 20.'),
+  includeDirectories: z.array(z.string()).optional()
+    .describe('Optional relative research directories to search. Defaults to knowledge, companies, industries, and reports.'),
 });
 
 export const SendDeveloperFeedbackSchema = z.object({
@@ -378,6 +424,31 @@ Use this when a source provides HTML templates for rich rendering of its data (e
 
 Templates use Mustache syntax — the tool handles rendering and writes the output HTML to the session data folder.`,
 
+  research_workflow: `Plan a research-first Analyst Agent workflow.
+
+Use this before substantial investment research. It classifies the task, checks required inputs, returns the Research Manager responsibilities, the six fixed subagent task cards, the unified data layer requests, a quality gate, and an evidence ledger template.
+
+If key inputs are missing (target, event date, earnings period, etc.), it returns hitl_clarification_required instead of guessing.
+
+For ready workflows, the main agent should spawn the six subagents by default with spawn_session and use send_agent_message for revision loops when evidence is incomplete.`,
+
+  finance_market_data: `Fetch normalized read-only finance data through the V1 provider router.
+
+Use this for quotes, historical prices, financial summaries/statements, valuation metrics, news, announcements, macro data, and technical indicators.
+
+Provider routing:
+- CN/HK: iFinD first, then optional tushare/akshare/baostock Python-backed fallbacks.
+- US: edgartools/yfinance depending on request type.
+- Global: configured iFinD, tushare, yfinance, and local Python fallbacks.
+
+If a provider is missing credentials, unavailable, or returns unusable data, the tool returns structured warnings and citations instead of failing the research turn. Continue with knowledge-base/user files and disclose the limitation.`,
+
+  knowledge_search: `Search the local finance research knowledge base.
+
+Use this before drafting research or subagent deliverables. It searches configured finance research directories such as knowledge/, companies/, industries/, and reports/ with path containment checks.
+
+Results include paths, snippets, updatedAt, and whether the match came from content or filename. Cite returned paths in the evidence ledger.`,
+
   browser_tool: `Run browser actions using a CLI-like command (string or array input).
 
 All browser interactions use this single tool with strict validation and actionable feedback.
@@ -542,6 +613,9 @@ export const SESSION_TOOL_DEFS: SessionToolDef[] = [
   { name: 'transform_data', description: TOOL_DESCRIPTIONS.transform_data, inputSchema: TransformDataSchema, executionMode: 'registry', safeMode: 'allow', handler: handleTransformData },
   { name: 'script_sandbox', description: TOOL_DESCRIPTIONS.script_sandbox, inputSchema: ScriptSandboxSchema, executionMode: 'registry', safeMode: 'allow', handler: handleScriptSandbox },
   { name: 'render_template', description: TOOL_DESCRIPTIONS.render_template, inputSchema: RenderTemplateSchema, executionMode: 'registry', safeMode: 'allow', handler: handleRenderTemplate },
+  { name: 'research_workflow', description: TOOL_DESCRIPTIONS.research_workflow, inputSchema: ResearchWorkflowSchema, executionMode: 'registry', safeMode: 'allow', readOnly: true, handler: handleResearchWorkflow },
+  { name: 'finance_market_data', description: TOOL_DESCRIPTIONS.finance_market_data, inputSchema: FinanceMarketDataSchema, executionMode: 'registry', safeMode: 'allow', readOnly: true, handler: handleFinanceMarketData },
+  { name: 'knowledge_search', description: TOOL_DESCRIPTIONS.knowledge_search, inputSchema: KnowledgeSearchSchema, executionMode: 'registry', safeMode: 'allow', readOnly: true, handler: handleKnowledgeSearch },
   { name: 'send_developer_feedback', description: TOOL_DESCRIPTIONS.send_developer_feedback, inputSchema: SendDeveloperFeedbackSchema, executionMode: 'registry', safeMode: 'allow', handler: handleSendDeveloperFeedback },
   { name: 'call_llm', description: TOOL_DESCRIPTIONS.call_llm, inputSchema: CallLlmSchema, executionMode: 'backend', safeMode: 'allow', readOnly: true, handler: null },
   { name: 'spawn_session', description: TOOL_DESCRIPTIONS.spawn_session, inputSchema: SpawnSessionSchema, executionMode: 'backend', safeMode: 'block', handler: null },

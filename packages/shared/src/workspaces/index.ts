@@ -7,10 +7,19 @@
 // Types
 export type {
   WorkspaceConfig,
+  FinanceWorkspaceConfig,
   CreateWorkspaceInput,
   LoadedWorkspace,
   WorkspaceSummary,
 } from './types.ts';
+
+export {
+  FINANCE_RESEARCH_DIRS,
+  ensureFinanceWorkspaceConfig,
+  ensureFinanceResearchWorkspace,
+  getDefaultFinanceWorkspaceConfig,
+  normalizeFinanceWorkspaceConfig,
+} from './finance.ts';
 
 // Storage functions
 export {
