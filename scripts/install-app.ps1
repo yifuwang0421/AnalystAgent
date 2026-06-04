@@ -5,7 +5,7 @@
 $ErrorActionPreference = "Stop"
 
 $VERSIONS_URL = "https://github.com/yifuwang0421/AnalystAgent/electron"
-$DOWNLOAD_DIR = "$env:TEMP\craft-agent-install"
+$DOWNLOAD_DIR = "$env:TEMP\analyst-agent-install"
 $APP_NAME = "Analyst Agent"
 
 # Colors for output
@@ -227,10 +227,10 @@ Write-Info "Cleaning up..."
 Remove-Item -Path $installerPath -Force -ErrorAction SilentlyContinue
 
 # Add command line shortcut
-Write-Info "Adding 'craft-agents' command to PATH..."
+Write-Info "Adding 'analyst-agent' command to PATH..."
 
 $binDir = "$env:LOCALAPPDATA\Analyst Agent\bin"
-$cmdFile = "$binDir\craft-agents.cmd"
+$cmdFile = "$binDir\analyst-agent.cmd"
 $exePath = "$env:LOCALAPPDATA\Programs\Analyst Agent\Analyst Agent.exe"
 
 # Create bin directory
@@ -245,9 +245,9 @@ $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
 if ($userPath -notlike "*$binDir*") {
     $newPath = "$userPath;$binDir"
     [Environment]::SetEnvironmentVariable("Path", $newPath, "User")
-    Write-Success "Added to PATH (restart terminal to use 'craft-agents' command)"
+    Write-Success "Added to PATH (restart terminal to use 'analyst-agent' command)"
 } else {
-    Write-Success "Command 'craft-agents' is ready"
+    Write-Success "Command 'analyst-agent' is ready"
 }
 
 Write-Host ""
@@ -259,6 +259,6 @@ Write-Host "  Analyst Agent has been installed."
 Write-Host ""
 Write-Host "  Launch from:"
 Write-Host "    - Start Menu or desktop shortcut"
-Write-Host "    - Command line: craft-agents (restart terminal first)"
+Write-Host "    - Command line: analyst-agent (restart terminal first)"
 Write-Host ""
 }

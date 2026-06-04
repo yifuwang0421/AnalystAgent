@@ -316,13 +316,13 @@ else
 
     # New paths
     APP_DIR="$HOME/.analyst-agent/app"
-    WRAPPER_PATH="$INSTALL_DIR/craft-agents"
+    WRAPPER_PATH="$INSTALL_DIR/analyst-agent"
     APPIMAGE_INSTALL_PATH="$APP_DIR/Analyst-Agent-x64.AppImage"
 
     # Kill the app if it's running
-    if pgrep -f "Craft-Agent.*AppImage" >/dev/null 2>&1; then
+    if pgrep -f "Analyst-Agent.*AppImage" >/dev/null 2>&1; then
         info "Stopping Analyst Agent..."
-        pkill -f "Craft-Agent.*AppImage" 2>/dev/null || true
+        pkill -f "Analyst-Agent.*AppImage" 2>/dev/null || true
         sleep 2
     fi
 
@@ -345,8 +345,10 @@ else
 # Analyst Agent launcher - handles Linux-specific AppImage issues
 
 APPIMAGE_PATH="$HOME/.analyst-agent/app/Analyst-Agent-x64.AppImage"
-ELECTRON_CACHE="$HOME/.config/@craft-agent"
-ELECTRON_CACHE_ALT="$HOME/.cache/@craft-agent"
+ELECTRON_CACHE="$HOME/.config/analyst-agent"
+ELECTRON_CACHE_ALT="$HOME/.cache/analyst-agent"
+LEGACY_ELECTRON_CACHE="$HOME/.config/@craft-agent"
+LEGACY_ELECTRON_CACHE_ALT="$HOME/.cache/@craft-agent"
 
 # Verify AppImage exists
 if [ ! -f "$APPIMAGE_PATH" ]; then
@@ -361,9 +363,9 @@ if [ -z "$DISPLAY" ]; then
 fi
 
 # Clear stale cache referencing AppImage mount paths
-# AppImage creates a new /tmp/.mount_Craft-XXXX each launch, so any cached path is stale
-for cache_dir in "$ELECTRON_CACHE" "$ELECTRON_CACHE_ALT"; do
-    if [ -d "$cache_dir" ] && grep -rq '/tmp/\.mount_Craft' "$cache_dir" 2>/dev/null; then
+# AppImage creates a new /tmp/.mount_Analys-XXXX each launch, so any cached path is stale
+for cache_dir in "$ELECTRON_CACHE" "$ELECTRON_CACHE_ALT" "$LEGACY_ELECTRON_CACHE" "$LEGACY_ELECTRON_CACHE_ALT"; do
+    if [ -d "$cache_dir" ] && grep -Eq '/tmp/\.mount_(Analys|Craft)' "$cache_dir" 2>/dev/null; then
         rm -rf "$cache_dir"
     fi
 done
@@ -389,7 +391,7 @@ WRAPPER_EOF
     printf "%b\n" "  AppImage: ${BOLD}$APPIMAGE_INSTALL_PATH${NC}"
     printf "%b\n" "  Launcher: ${BOLD}$WRAPPER_PATH${NC}"
     echo ""
-    printf "%b\n" "  Run with: ${BOLD}craft-agents${NC}"
+    printf "%b\n" "  Run with: ${BOLD}analyst-agent${NC}"
     echo ""
     printf "%b\n" "  Add to PATH if needed:"
     printf "%b\n" "    ${BOLD}echo 'export PATH=\"\$HOME/.local/bin:\$PATH\"' >> ~/.bashrc${NC}"

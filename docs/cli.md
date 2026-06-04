@@ -12,8 +12,8 @@ Terminal client for Analyst Agent server. Connects over WebSocket (`ws://` or `w
 
 ```bash
 # Clone the repository
-git clone https://github.com/anthropics/craft-agents.git
-cd craft-agents
+git clone https://github.com/yifuwang0421/AnalystAgent.git
+cd AnalystAgent
 
 # Install dependencies
 bun install
