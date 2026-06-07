@@ -45,7 +45,7 @@ export const routes = {
      * @param status - Optional status/todo-state ID to apply to the new session
      * @param label - Optional label ID to apply to the new session
      */
-    newSession: (params?: { input?: string; name?: string; send?: boolean; status?: string; label?: string }) =>
+    newSession: (params?: { input?: string; name?: string; send?: boolean; status?: string; label?: string; agentId?: string }) =>
       `action/new-session${toQueryString(params ? { ...params, send: params.send ? 'true' : undefined } : undefined)}` as const,
 
     /** Rename a session */
@@ -176,6 +176,18 @@ export const routes = {
     /** Agentic automations view (automations navigator, agentic filter) */
     automationsAgentic: (automationId?: string) =>
       automationId ? `automations/agentic/automation/${automationId}` as const : 'automations/agentic' as const,
+
+    /** Research workspace files view. */
+    files: (path?: string) =>
+      path ? `files/research/file/${encodeURIComponent(path)}` as const : 'files/research' as const,
+
+    /** Knowledge base view. */
+    knowledge: (path?: string) =>
+      path ? `knowledge/file/${encodeURIComponent(path)}` as const : 'knowledge' as const,
+
+    /** Analyst role presets view. */
+    agents: (agentId?: string) =>
+      agentId ? `agents/agent/${agentId}` as const : 'agents' as const,
 
     /** Settings view (settings navigator) - uses SettingsSubpage from registry */
     settings: (subpage?: SettingsSubpage) =>

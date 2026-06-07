@@ -1,16 +1,16 @@
 import type { ComponentEntry } from './types'
-import { AnalystAgentLogo } from '@/components/icons/AnalystAgentLogo'
-import { AnalystAgentSymbol } from '@/components/icons/AnalystAgentSymbol'
+import { CraftAgentsLogo } from '@/components/icons/CraftAgentsLogo'
+import { CraftAgentsSymbol } from '@/components/icons/CraftAgentsSymbol'
 import { PanelLeftRounded } from '@/components/icons/PanelLeftRounded'
 import { SquarePenRounded } from '@/components/icons/SquarePenRounded'
 
 export const iconComponents: ComponentEntry[] = [
   {
     id: 'craft-agents-logo',
-    name: 'AnalystAgentLogo',
+    name: 'CraftAgentsLogo',
     category: 'Icons',
     description: 'Full Analyst Agent branding logo with text',
-    component: AnalystAgentLogo,
+    component: CraftAgentsLogo,
     props: [
       {
         name: 'className',
@@ -27,10 +27,10 @@ export const iconComponents: ComponentEntry[] = [
   },
   {
     id: 'craft-agents-symbol',
-    name: 'AnalystAgentSymbol',
+    name: 'CraftAgentsSymbol',
     category: 'Icons',
     description: 'Analyst Agent "E" pixel art symbol icon (brand color: #9570BE)',
-    component: AnalystAgentSymbol,
+    component: CraftAgentsSymbol,
     props: [
       {
         name: 'className',

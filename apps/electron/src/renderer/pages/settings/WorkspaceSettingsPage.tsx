@@ -8,7 +8,7 @@
  * - Permissions (Default mode, Mode cycling)
  * - Advanced (Working directory, Local MCP servers)
  *
- * Includes workspace AI overrides for the legacy settings surface.
+ * Note: AI settings (model, thinking, connection) have been moved to AiSettingsPage.
  */
 
 import * as React from 'react'
@@ -17,15 +17,16 @@ import { useTranslation } from 'react-i18next'
 import { motion, AnimatePresence } from 'motion/react'
 import { PanelHeader } from '@/components/app-shell/PanelHeader'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { HeaderMenu } from '@/components/ui/HeaderMenu'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { HeaderMenu } from '@/components/ui/HeaderMenu'
 import { useAppShellContext } from '@/context/AppShellContext'
 import { cn } from '@/lib/utils'
 import { routes } from '@/lib/navigate'
 import { Spinner } from '@craft-agent/ui'
 import { RenameDialog } from '@/components/ui/rename-dialog'
 import type { LlmConnectionWithStatus, PermissionMode, WorkspaceSettings, LoadedSource } from '../../../shared/types'
+import type { FinanceWorkspaceConfig } from '@craft-agent/shared/workspaces'
 import { useDirectoryPicker } from '@/hooks/useDirectoryPicker'
 import { ServerDirectoryBrowser } from '@/components/ServerDirectoryBrowser'
 import { PERMISSION_MODE_CONFIG } from '@craft-agent/shared/agent/mode-types'
@@ -225,10 +226,11 @@ export default function WorkspaceSettingsPage() {
   const [wsIconUrl, setWsIconUrl] = useState<string | null>(null)
   const [isUploadingIcon, setIsUploadingIcon] = useState(false)
   const [permissionMode, setPermissionMode] = useState<PermissionMode>('ask')
-  const [workspaceLlmConnection, setWorkspaceLlmConnection] = useState<string | undefined>()
-  const [workspaceModel, setWorkspaceModel] = useState<string | undefined>()
   const [workingDirectory, setWorkingDirectory] = useState('')
   const [localMcpEnabled, setLocalMcpEnabled] = useState(true)
+  const [financeConfig, setFinanceConfig] = useState<FinanceWorkspaceConfig | null>(null)
+  const [workspaceLlmConnection, setWorkspaceLlmConnection] = useState<string | undefined>()
+  const [workspaceModel, setWorkspaceModel] = useState<string | undefined>()
   const [isLoadingWorkspace, setIsLoadingWorkspace] = useState(true)
 
   // Default sources state
@@ -254,10 +256,11 @@ export default function WorkspaceSettingsPage() {
           setWsName(settings.name || '')
           setWsNameEditing(settings.name || '')
           setPermissionMode(settings.permissionMode || 'ask')
-          setWorkspaceLlmConnection(settings.defaultLlmConnection)
-          setWorkspaceModel(settings.model)
           setWorkingDirectory(settings.workingDirectory || '')
           setLocalMcpEnabled(settings.localMcpEnabled ?? true)
+          setFinanceConfig(settings.finance ?? null)
+          setWorkspaceLlmConnection(settings.defaultLlmConnection)
+          setWorkspaceModel(settings.model)
           // Load cyclable permission modes from workspace settings
           if (settings.cyclablePermissionModes && settings.cyclablePermissionModes.length >= 2) {
             setEnabledModes(settings.cyclablePermissionModes)
@@ -472,6 +475,31 @@ export default function WorkspaceSettingsPage() {
     [updateWorkspaceSetting]
   )
 
+  const handleFinanceConfigChange = useCallback(
+    async (updates: Partial<FinanceWorkspaceConfig>) => {
+      if (!financeConfig) return
+      const nextConfig: FinanceWorkspaceConfig = {
+        ...financeConfig,
+        ...updates,
+      }
+      setFinanceConfig(nextConfig)
+      await updateWorkspaceSetting('finance', nextConfig)
+    },
+    [financeConfig, updateWorkspaceSetting]
+  )
+
+  const handleResearchDirectorySelected = useCallback(async (selectedPath: string) => {
+    await handleFinanceConfigChange({ researchDirectory: selectedPath })
+  }, [handleFinanceConfigChange])
+
+  const {
+    pickDirectory: handleChangeResearchDirectory,
+    showServerBrowser: showResearchBrowser,
+    serverBrowserMode: researchBrowserMode,
+    cancelServerBrowser: cancelResearchBrowser,
+    confirmServerBrowser: confirmResearchBrowser,
+  } = useDirectoryPicker(handleResearchDirectorySelected)
+
   const handleSourceToggle = useCallback(
     async (slug: string, checked: boolean) => {
       const newSlugs = checked
@@ -619,34 +647,57 @@ export default function WorkspaceSettingsPage() {
               />
             </SettingsSection>
 
-            {/* AI */}
-            {llmConnections.length > 0 && (
-              <SettingsSection title={t("settings.ai.title")} description={t("settings.ai.description")}>
+            {financeConfig && (
+              <SettingsSection
+                title="Financial Research"
+                description="Configure the analyst workspace, knowledge base, and first-phase market data provider."
+              >
                 <SettingsCard>
+                  <SettingsToggle
+                    label="Finance analyst workspace"
+                    description="Use finance analyst prompts, research folders, knowledge search, and market data tools."
+                    checked={financeConfig.enabled}
+                    onCheckedChange={(checked) => handleFinanceConfigChange({ enabled: checked })}
+                  />
+                  <SettingsRow
+                    label="Research directory"
+                    description={financeConfig.researchDirectory}
+                    action={
+                      <button
+                        type="button"
+                        onClick={handleChangeResearchDirectory}
+                        className="inline-flex items-center h-8 px-3 text-sm rounded-lg bg-background shadow-minimal hover:bg-foreground/[0.02] transition-colors"
+                      >
+                        {t("common.change")}
+                      </button>
+                    }
+                  />
                   <SettingsMenuSelectRow
-                    label={t("settings.ai.connection")}
-                    description={t("settings.ai.connectionDesc")}
-                    value={workspaceLlmConnection ?? 'global'}
-                    onValueChange={handleWorkspaceLlmConnectionChange}
+                    label="Market scope"
+                    description="First phase defaults to A-share and Hong Kong research workflows."
+                    value={financeConfig.marketScope}
+                    onValueChange={(value) => handleFinanceConfigChange({ marketScope: value as FinanceWorkspaceConfig['marketScope'] })}
                     options={[
-                      { value: 'global', label: t("settings.ai.useDefault"), description: t("settings.ai.inheritFromApp") },
-                      ...llmConnections.map((conn) => ({
-                        value: conn.slug,
-                        label: conn.name,
-                        description: conn.providerType === 'anthropic' ? 'Anthropic API' :
-                                     conn.providerType === 'pi' ? 'Analyst Agent Backend' :
-                                     conn.providerType === 'pi_compat' ? 'Analyst Agent Backend Compatible' :
-                                     conn.providerType || 'Unknown',
-                      })),
+                      { value: 'cn-hk', label: 'A股/港股', description: 'A-share and Hong Kong market research' },
+                      { value: 'us', label: 'US', description: 'US-market research placeholder' },
+                      { value: 'global', label: 'Global', description: 'Multi-market research placeholder' },
                     ]}
                   />
-                  <ModelSettingRow
-                    label={t("settings.ai.model")}
-                    description={t("settings.ai.modelDesc")}
-                    value={workspaceModel ?? 'global'}
-                    onValueChange={handleWorkspaceModelChange}
-                    inheritOption={{ value: 'global', label: t("settings.ai.useDefault"), description: t("settings.ai.inheritFromApp") }}
-                    options={getModelOptionsForConnection(workspaceEffectiveConnection)}
+                  <SettingsMenuSelectRow
+                    label="Data provider"
+                    description="The generic provider interface can add more vendors later."
+                    value={financeConfig.dataProvider}
+                    onValueChange={(value) => handleFinanceConfigChange({ dataProvider: value as FinanceWorkspaceConfig['dataProvider'] })}
+                    options={[
+                      { value: 'ifind', label: 'iFinD MCP', description: 'Use iFinD stock, fund, and macro MCP servers' },
+                      { value: 'none', label: 'None', description: 'Use knowledge base and uploaded files only' },
+                    ]}
+                  />
+                  <SettingsToggle
+                    label="Reference knowledge base"
+                    description="Allow research sessions to search knowledge, companies, industries, and reports folders."
+                    checked={financeConfig.knowledgeBaseEnabled}
+                    onCheckedChange={(checked) => handleFinanceConfigChange({ knowledgeBaseEnabled: checked })}
                   />
                 </SettingsCard>
               </SettingsSection>
@@ -781,6 +832,13 @@ export default function WorkspaceSettingsPage() {
         onSelect={confirmWdBrowser}
         onCancel={cancelWdBrowser}
         initialPath={workingDirectory || undefined}
+      />
+      <ServerDirectoryBrowser
+        open={showResearchBrowser}
+        mode={researchBrowserMode}
+        onSelect={confirmResearchBrowser}
+        onCancel={cancelResearchBrowser}
+        initialPath={financeConfig?.researchDirectory}
       />
     </div>
   )

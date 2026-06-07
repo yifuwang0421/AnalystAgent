@@ -211,6 +211,12 @@ import type {
   DirectoryListingResult,
   RemoteSessionTransferPayload,
   ImportRemoteSessionTransferResult,
+  WorkspaceKnowledgeSearchResponse,
+  WorkspaceResearchFilesResult,
+  WriteWorkspaceMarkdownResult,
+  CreateWorkspaceResearchItemResult,
+  DeleteWorkspaceResearchItemResult,
+  WorkspaceResearchItemType,
 } from '@craft-agent/shared/protocol'
 
 export interface ElectronAPI {
@@ -306,6 +312,11 @@ export interface ElectronAPI {
   readFileDataUrl(path: string): Promise<string>
   /** Read an image file as a size-bounded preview data URL for lightweight thumbnail rendering. */
   readFilePreviewDataUrl(path: string, maxSize?: number): Promise<string>
+  listWorkspaceResearchFiles(workspaceId: string): Promise<WorkspaceResearchFilesResult>
+  searchWorkspaceKnowledge(workspaceId: string, query: string, maxResults?: number): Promise<WorkspaceKnowledgeSearchResponse>
+  writeWorkspaceMarkdown(path: string, content: string, expectedMtimeMs?: number): Promise<WriteWorkspaceMarkdownResult>
+  createWorkspaceResearchItem(workspaceId: string, parentPath: string, name: string, type: WorkspaceResearchItemType, content?: string): Promise<CreateWorkspaceResearchItemResult>
+  deleteWorkspaceResearchItem(workspaceId: string, path: string): Promise<DeleteWorkspaceResearchItemResult>
   openFileDialog(): Promise<string[]>
   readFileAttachment(path: string): Promise<FileAttachment | null>
   /** Re-read a user-attached file by absolute path (bypasses workspace-dir validation).
@@ -374,7 +385,7 @@ export interface ElectronAPI {
   onMenuToggleFocusMode(callback: () => void): () => void
   onMenuToggleSidebar(callback: () => void): () => void
 
-  // Deep link navigation listener (for external analystagent:// URLs)
+  // Deep link navigation listener (for external craftagents:// URLs)
   onDeepLinkNavigate(callback: (nav: DeepLinkNavigation) => void): () => void
 
   // Auth
@@ -851,6 +862,21 @@ export interface AutomationsNavigationState {
   rightSidebar?: RightSidebarPanel
 }
 
+export type FilesScope = 'research' | 'knowledge'
+
+export interface FilesNavigationState {
+  navigator: 'files'
+  scope: FilesScope
+  details: { type: 'file'; path: string } | null
+  rightSidebar?: RightSidebarPanel
+}
+
+export interface AgentsNavigationState {
+  navigator: 'agents'
+  details: { type: 'agent'; agentId: string } | null
+  rightSidebar?: RightSidebarPanel
+}
+
 /**
  * Unified navigation state
  */
@@ -860,6 +886,8 @@ export type NavigationState =
   | SettingsNavigationState
   | SkillsNavigationState
   | AutomationsNavigationState
+  | FilesNavigationState
+  | AgentsNavigationState
 
 export const isSessionsNavigation = (
   state: NavigationState
@@ -881,6 +909,14 @@ export const isAutomationsNavigation = (
   state: NavigationState
 ): state is AutomationsNavigationState => state.navigator === 'automations'
 
+export const isFilesNavigation = (
+  state: NavigationState
+): state is FilesNavigationState => state.navigator === 'files'
+
+export const isAgentsNavigation = (
+  state: NavigationState
+): state is AgentsNavigationState => state.navigator === 'agents'
+
 export const DEFAULT_NAVIGATION_STATE: NavigationState = {
   navigator: 'sessions',
   filter: { kind: 'allSessions' },
@@ -888,6 +924,19 @@ export const DEFAULT_NAVIGATION_STATE: NavigationState = {
 }
 
 export const getNavigationStateKey = (state: NavigationState): string => {
+  if (state.navigator === 'files') {
+    const base = state.scope === 'knowledge' ? 'knowledge' : 'files/research'
+    if (state.details) {
+      return `${base}/file/${encodeURIComponent(state.details.path)}`
+    }
+    return base
+  }
+  if (state.navigator === 'agents') {
+    if (state.details) {
+      return `agents/agent/${state.details.agentId}`
+    }
+    return 'agents'
+  }
   if (state.navigator === 'sources') {
     if (state.details) {
       return `sources/source/${state.details.sourceSlug}`
@@ -924,6 +973,33 @@ export const getNavigationStateKey = (state: NavigationState): string => {
 }
 
 export const parseNavigationStateKey = (key: string): NavigationState | null => {
+  // Handle files / knowledge
+  if (key === 'files' || key === 'files/research') return { navigator: 'files', scope: 'research', details: null }
+  if (key === 'knowledge' || key === 'files/knowledge') return { navigator: 'files', scope: 'knowledge', details: null }
+  if (key.startsWith('files/research/file/') || key.startsWith('knowledge/file/') || key.startsWith('files/knowledge/file/')) {
+    const prefix = key.startsWith('files/research/file/')
+      ? 'files/research/file/'
+      : key.startsWith('files/knowledge/file/')
+        ? 'files/knowledge/file/'
+        : 'knowledge/file/'
+    const filePath = decodeURIComponent(key.slice(prefix.length))
+    return {
+      navigator: 'files',
+      scope: prefix.includes('knowledge') ? 'knowledge' : 'research',
+      details: filePath ? { type: 'file', path: filePath } : null,
+    }
+  }
+
+  // Handle agents
+  if (key === 'agents') return { navigator: 'agents', details: null }
+  if (key.startsWith('agents/agent/')) {
+    const agentId = key.slice(13)
+    return {
+      navigator: 'agents',
+      details: agentId ? { type: 'agent', agentId } : null,
+    }
+  }
+
   // Handle sources
   if (key === 'sources') return { navigator: 'sources', details: null }
   if (key.startsWith('sources/source/')) {

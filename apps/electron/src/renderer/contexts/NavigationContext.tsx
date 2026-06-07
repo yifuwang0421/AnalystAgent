@@ -68,6 +68,8 @@ import {
   isSettingsNavigation,
   isSkillsNavigation,
   isAutomationsNavigation,
+  isFilesNavigation,
+  isAgentsNavigation,
   DEFAULT_NAVIGATION_STATE,
 } from '../../shared/types'
 import { sessionMetaMapAtom, updateSessionMetaAtom, type SessionMeta } from '@/atoms/sessions'
@@ -83,6 +85,7 @@ import {
   updateFocusedPanelRouteAtom,
   parseSessionIdFromRoute,
 } from '@/atoms/panel-stack'
+import { saveSelectedAgentForSession } from '@/lib/agent-presets'
 
 // Re-export routes for convenience
 export { routes }
@@ -90,7 +93,7 @@ export type { Route }
 
 // Re-export navigation state types for consumers
 export type { NavigationState, SessionFilter }
-export { isSessionsNavigation, isSourcesNavigation, isSettingsNavigation, isSkillsNavigation, isAutomationsNavigation }
+export { isSessionsNavigation, isSourcesNavigation, isSettingsNavigation, isSkillsNavigation, isAutomationsNavigation, isFilesNavigation, isAgentsNavigation }
 
 // =============================================================================
 // Context
@@ -696,6 +699,10 @@ export function NavigationProvider({
 
           if (parsed.params.name) {
             await window.electronAPI.sessionCommand(session.id, { type: 'rename', name: parsed.params.name })
+          }
+
+          if (parsed.params.agentId) {
+            saveSelectedAgentForSession(session.id, parsed.params.agentId)
           }
 
           if (parsed.params.status) {

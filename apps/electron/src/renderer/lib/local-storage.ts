@@ -14,6 +14,7 @@ export const KEYS = {
   sidebarVisible: 'sidebar-visible',
   sidebarWidth: 'sidebar-width',
   sessionListWidth: 'session-list-width',
+  centerWorkAreaWidth: 'center-work-area-width',
   sidebarMode: 'sidebar-mode',
   listFilter: 'list-filter',
   labelFilter: 'label-filter',
@@ -59,6 +60,10 @@ export const KEYS = {
   // Workspace navigation state (workspace-scoped via suffix = workspaceSlug)
   // Stores the full URL search string so switching back restores panels/focus/sidebar
   workspaceUrl: 'workspace-url',
+
+  // Investment research agent presets
+  customAgentPresets: 'custom-agent-presets',
+  selectedAgentBySession: 'selected-agent-by-session',
 } as const
 
 export type StorageKey = typeof KEYS[keyof typeof KEYS]

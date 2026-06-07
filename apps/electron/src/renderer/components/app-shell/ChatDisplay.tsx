@@ -1,6 +1,7 @@
 import * as React from "react"
 import { useTranslation } from "react-i18next"
 import { useEffect, useState, useMemo, useCallback } from "react"
+import { createPortal } from "react-dom"
 import {
   AlertTriangle,
   CheckCircle2,
@@ -9,13 +10,18 @@ import {
   ChevronUp,
   CircleAlert,
   ExternalLink,
+  FileText,
+  Folder,
+  FolderOpen,
   Info,
+  Save,
   X,
 } from "lucide-react"
 import { motion, AnimatePresence } from "motion/react"
 import { toast } from "sonner"
 
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { Markdown, CollapsibleMarkdownProvider, StreamingMarkdown, type RenderMode } from "@/components/markdown"
 import { AnimatedCollapsibleContent } from "@/components/ui/collapsible"
@@ -41,7 +47,7 @@ import {
 } from "@craft-agent/ui"
 import { useFocusZone } from "@/hooks/keyboard"
 import { useTheme } from "@/hooks/useTheme"
-import type { Session, Message, FileAttachment, StoredAttachment, PermissionRequest, CredentialRequest, CredentialResponse, LoadedSource, LoadedSkill } from "../../../shared/types"
+import type { Session, Message, FileAttachment, StoredAttachment, PermissionRequest, CredentialRequest, CredentialResponse, LoadedSource, LoadedSkill, ContentBadge, WorkspaceResearchFileEntry } from "../../../shared/types"
 import type { PermissionMode } from "@craft-agent/shared/agent/modes"
 import type { ThinkingLevel } from "@craft-agent/shared/agent/thinking-levels"
 import {
@@ -64,6 +70,7 @@ import {
 } from "@craft-agent/ui"
 import { MemoizedAuthRequestCard } from "@/components/chat/AuthRequestCard"
 import { ChatInputZone, type StructuredInputState, type StructuredResponse, type PermissionResponse, type AdminApprovalResponse } from "./input"
+import { buildAgentContext, type AgentPreset } from '@/lib/agent-presets'
 import type { RichTextInputHandle } from "@/components/ui/rich-text-input"
 import { useBackgroundTasks } from "@/hooks/useBackgroundTasks"
 import { useTurnCardExpansion } from "@/hooks/useTurnCardExpansion"
@@ -116,6 +123,238 @@ type OverlayState =
   | MarkdownOverlayState
   | null
 
+interface SaveWorkspaceDraft {
+  content: string
+  title: string
+}
+
+function basename(path: string): string {
+  return path.split(/[\\/]/).filter(Boolean).pop() || path
+}
+
+function fileNameFromTitle(title: string): string {
+  const base = title
+    .replace(/[#*_`~[\](){}<>:"|?\\/]+/g, ' ')
+    .replace(/\s+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .toLowerCase()
+    .slice(0, 48)
+  return `${base || 'response'}.md`
+}
+
+function isMarkdownFileName(name: string): boolean {
+  return /\.(md|markdown)$/i.test(name)
+}
+
+function pickDefaultDirectory(entries: WorkspaceResearchFileEntry[]): WorkspaceResearchFileEntry | null {
+  const preferred = entries.find(entry => entry.type === 'directory' && entry.relativePath === 'reports')
+  if (preferred) return preferred
+  return entries.find(entry => entry.type === 'directory') ?? null
+}
+
+function DirectoryPickerItem({
+  entry,
+  selectedPath,
+  onSelect,
+  depth = 0,
+}: {
+  entry: WorkspaceResearchFileEntry
+  selectedPath: string | null
+  onSelect: (entry: WorkspaceResearchFileEntry) => void
+  depth?: number
+}) {
+  const [open, setOpen] = React.useState(depth < 1)
+  if (entry.type !== 'directory') return null
+  const isSelected = selectedPath === entry.path
+  const childDirs = entry.children?.filter(child => child.type === 'directory') ?? []
+
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={() => {
+          onSelect(entry)
+          setOpen(value => !value)
+        }}
+        className={cn(
+          "h-8 w-full rounded-[6px] px-2 flex items-center gap-2 text-left text-xs transition-colors",
+          isSelected ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-foreground/[0.04] hover:text-foreground"
+        )}
+        style={{ paddingLeft: 8 + depth * 14 }}
+      >
+        {open ? <FolderOpen className="h-3.5 w-3.5 shrink-0" /> : <Folder className="h-3.5 w-3.5 shrink-0" />}
+        <span className="truncate font-medium">{entry.name}</span>
+      </button>
+      {open && childDirs.length > 0 && (
+        <div>
+          {childDirs.map(child => (
+            <DirectoryPickerItem
+              key={child.path}
+              entry={child}
+              selectedPath={selectedPath}
+              onSelect={onSelect}
+              depth={depth + 1}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function SaveMarkdownToWorkspaceDialog({
+  workspaceId,
+  draft,
+  onClose,
+}: {
+  workspaceId?: string
+  draft: SaveWorkspaceDraft | null
+  onClose: () => void
+}) {
+  const [entries, setEntries] = React.useState<WorkspaceResearchFileEntry[]>([])
+  const [selectedDir, setSelectedDir] = React.useState<WorkspaceResearchFileEntry | null>(null)
+  const [fileName, setFileName] = React.useState('')
+  const [loading, setLoading] = React.useState(false)
+  const [saving, setSaving] = React.useState(false)
+  const [error, setError] = React.useState<string | null>(null)
+
+  React.useEffect(() => {
+    if (!draft) return
+    setFileName(fileNameFromTitle(draft.title))
+    setError(null)
+  }, [draft])
+
+  React.useEffect(() => {
+    if (!draft || !workspaceId) return
+    let cancelled = false
+    setLoading(true)
+    setError(null)
+    window.electronAPI.listWorkspaceResearchFiles(workspaceId)
+      .then(result => {
+        if (cancelled) return
+        setEntries(result.entries)
+        setSelectedDir(prev => prev && result.entries.some(entry => entry.path === prev.path) ? prev : pickDefaultDirectory(result.entries))
+      })
+      .catch(err => {
+        if (!cancelled) setError(err instanceof Error ? err.message : String(err))
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [draft, workspaceId])
+
+  const handleSave = React.useCallback(async () => {
+    if (!draft || !workspaceId || !selectedDir) return
+    const trimmedName = fileName.trim()
+    if (!trimmedName) {
+      setError('请输入文件名')
+      return
+    }
+    const normalizedName = isMarkdownFileName(trimmedName) ? trimmedName : `${trimmedName}.md`
+    setSaving(true)
+    setError(null)
+    try {
+      await window.electronAPI.createWorkspaceResearchItem(
+        workspaceId,
+        selectedDir.path,
+        normalizedName,
+        'file',
+        draft.content
+      )
+      toast.success('已保存至工作区', {
+        description: `${selectedDir.relativePath}/${normalizedName}`,
+      })
+      onClose()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setSaving(false)
+    }
+  }, [draft, fileName, onClose, selectedDir, workspaceId])
+
+  if (!draft) return null
+
+  if (typeof document === 'undefined') return null
+
+  return createPortal(
+    <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-background/60 p-4 backdrop-blur-sm">
+      <div className="w-full max-w-[680px] overflow-hidden rounded-[8px] border border-border bg-background shadow-xl">
+        <div className="h-12 border-b border-border/60 px-4 flex items-center gap-3">
+          <Save className="h-4 w-4 text-muted-foreground" />
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-sm font-medium text-foreground">保存至工作区</div>
+            <div className="truncate text-[11px] text-muted-foreground">{draft.title}</div>
+          </div>
+          <button
+            type="button"
+            aria-label="关闭"
+            onClick={onClose}
+            className="h-8 w-8 inline-flex items-center justify-center rounded-[6px] text-muted-foreground hover:bg-foreground/[0.04] hover:text-foreground"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="grid min-h-[360px] grid-cols-[260px_1fr]">
+          <div className="border-r border-border/50 flex flex-col min-h-0">
+            <div className="px-3 py-2 border-b border-border/40 text-[11px] font-medium text-muted-foreground">选择保存目录</div>
+            <ScrollArea className="flex-1 min-h-0">
+              <div className="p-2">
+                {loading ? (
+                  <div className="h-24 flex items-center justify-center"><Spinner className="text-muted-foreground" /></div>
+                ) : entries.length > 0 ? (
+                  entries.map(entry => (
+                    <DirectoryPickerItem
+                      key={entry.path}
+                      entry={entry}
+                      selectedPath={selectedDir?.path ?? null}
+                      onSelect={setSelectedDir}
+                    />
+                  ))
+                ) : (
+                  <div className="px-3 py-8 text-center text-xs text-muted-foreground">暂无可用目录</div>
+                )}
+              </div>
+            </ScrollArea>
+          </div>
+          <div className="p-4 flex flex-col gap-4">
+            <div>
+              <label className="mb-1.5 block text-xs font-medium text-foreground">文件名</label>
+              <div className="flex items-center gap-2">
+                <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
+                <input
+                  value={fileName}
+                  onChange={(event) => setFileName(event.target.value)}
+                  placeholder="response.md"
+                  className="h-9 flex-1 rounded-[6px] border border-border bg-background px-3 text-sm outline-none focus:border-primary/50"
+                />
+              </div>
+            </div>
+            <div>
+              <div className="mb-1.5 text-xs font-medium text-foreground">保存地址</div>
+              <div className="rounded-[6px] border border-border/70 bg-muted/[0.18] px-3 py-2 text-xs text-muted-foreground">
+                {selectedDir ? `${selectedDir.relativePath}/${fileName.trim() || 'response.md'}` : '请先选择目录'}
+              </div>
+            </div>
+            {error && (
+              <div className="rounded-[6px] bg-destructive/10 px-3 py-2 text-xs text-destructive">{error}</div>
+            )}
+            <div className="mt-auto flex items-center justify-end gap-2">
+              <Button type="button" variant="outline" onClick={onClose} disabled={saving}>取消</Button>
+              <Button type="button" onClick={handleSave} disabled={saving || loading || !selectedDir}>
+                {saving ? '保存中' : '保存'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>,
+    document.body
+  )
+}
+
 function isStackedActivityTool(activity: ActivityItem): boolean {
   const toolName = activity.toolName?.toLowerCase() || ''
   return toolName === 'bash' || toolName.startsWith('mcp__') || toolName.startsWith('browser_')
@@ -130,7 +369,7 @@ function getTurnKey(turn: Turn): string {
 
 interface ChatDisplayProps {
   session: Session | null
-  onSendMessage: (message: string, attachments?: FileAttachment[], skillSlugs?: string[]) => void
+  onSendMessage: (message: string, attachments?: FileAttachment[], skillSlugs?: string[], badges?: ContentBadge[]) => void
   onOpenFile: (path: string) => void
   onOpenUrl: (url: string) => void
   // Model selection
@@ -238,6 +477,10 @@ interface ChatDisplayProps {
   emptyStateLabel?: string
   /** When true, the session's locked connection has been removed - disables send and shows unavailable state */
   connectionUnavailable?: boolean
+  /** Selected investment research role for this session */
+  selectedAgentPreset?: AgentPreset | null
+  /** Clear selected investment research role */
+  onClearSelectedAgent?: () => void
 }
 
 import {
@@ -494,6 +737,8 @@ export const ChatDisplay = React.forwardRef<ChatDisplayHandle, ChatDisplayProps>
   emptyStateLabel,
   // Connection unavailable
   connectionUnavailable = false,
+  selectedAgentPreset = null,
+  onClearSelectedAgent,
 }, ref) {
   const { t } = useTranslation()
 
@@ -973,9 +1218,10 @@ export const ChatDisplay = React.forwardRef<ChatDisplayHandle, ChatDisplayProps>
 
   // Overlay state - controls which overlay is shown (if any)
   const [overlayState, setOverlayState] = useState<OverlayState>(null)
+  const [saveWorkspaceDraft, setSaveWorkspaceDraft] = useState<SaveWorkspaceDraft | null>(null)
 
   // Diff viewer settings - loaded from user preferences on mount, persisted on change
-  // These settings are stored in ~/.analyst-agent/preferences.json (not localStorage)
+  // These settings are stored in ~/.craft-agent/preferences.json (not localStorage)
   const [diffViewerSettings, setDiffViewerSettings] = useState<Partial<DiffViewerSettings>>({})
 
   // Load diff viewer settings from preferences on mount
@@ -1013,6 +1259,17 @@ export const ChatDisplay = React.forwardRef<ChatDisplayHandle, ChatDisplayProps>
   const handleCloseOverlay = useCallback(() => {
     setOverlayState(null)
   }, [])
+
+  const handleSaveResponseToWorkspace = useCallback((content: string, title = 'response.md') => {
+    if (!workspaceId) {
+      toast.error('未选择工作区')
+      return
+    }
+    setSaveWorkspaceDraft({
+      content,
+      title,
+    })
+  }, [workspaceId])
 
   // Extract overlay cards for activity-based overlays (Input/Output, future extensible)
   const overlayCards = useMemo(() => {
@@ -1229,10 +1486,14 @@ export const ChatDisplay = React.forwardRef<ChatDisplayHandle, ChatDisplayProps>
       ? (hasBaseMessage ? `${message}\n\n${followUpSection}` : followUpSection)
       : message
     const normalizedMessage = normalizeFollowUpsMarkdown(messageWithFollowUps)
+    const shouldApplyAgentRole = !!selectedAgentPreset && !normalizedMessage.trim().startsWith('/compact')
+    const agentContext = shouldApplyAgentRole ? buildAgentContext(selectedAgentPreset) : null
+    const finalMessage = agentContext ? `${agentContext.prefix}${normalizedMessage}` : normalizedMessage
+    const badges = agentContext ? [agentContext.badge] : undefined
 
     // Force stick-to-bottom when user sends a message
     isStickToBottomRef.current = true
-    onSendMessage(normalizedMessage, attachments, skillSlugs)
+    onSendMessage(finalMessage, attachments, skillSlugs, badges)
 
     // Persist sent marker on follow-up annotations so TurnCard can distinguish
     // sent vs pending follow-ups. If user edits a follow-up later, TurnCard
@@ -1822,6 +2083,9 @@ export const ChatDisplay = React.forwardRef<ChatDisplayHandle, ChatDisplayProps>
                             forceCodeView: true,
                           })
                         }}
+                        onSaveToWorkspace={(text) => {
+                          handleSaveResponseToWorkspace(text, `response-${turn.turnId || turn.timestamp}.md`)
+                        }}
                         onOpenDetails={() => {
                           // Open turn details in markdown overlay
                           const markdown = formatTurnAsMarkdown(turn)
@@ -1946,6 +2210,8 @@ export const ChatDisplay = React.forwardRef<ChatDisplayHandle, ChatDisplayProps>
               isEmptySession: session.messages.length === 0,
               currentConnection: session.llmConnection,
               onConnectionChange,
+              selectedAgentPreset,
+              onClearSelectedAgent,
               contextStatus: {
                 isCompacting: session.currentStatus?.statusType === 'compacting',
                 inputTokens: session.tokenUsage?.inputTokens,
@@ -1963,6 +2229,12 @@ export const ChatDisplay = React.forwardRef<ChatDisplayHandle, ChatDisplayProps>
       {/* ================================================================== */}
       {/* Preview Overlays - Rendered outside the main chat flow            */}
       {/* ================================================================== */}
+
+      <SaveMarkdownToWorkspaceDialog
+        workspaceId={workspaceId}
+        draft={saveWorkspaceDraft}
+        onClose={() => setSaveWorkspaceDraft(null)}
+      />
 
       {/* Activity details overlay */}
       {overlayState?.type === 'activity' && useStackedActivityOverlay && (

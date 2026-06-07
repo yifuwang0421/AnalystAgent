@@ -1,11 +1,14 @@
 import analystLogo from "@/assets/analyst_agent_logo.png"
 
-interface AnalystAppIconProps {
+interface CraftAppIconProps {
   className?: string
   size?: number
 }
 
-export function AnalystAppIcon({ className, size = 64 }: AnalystAppIconProps) {
+/**
+ * CraftAppIcon - Displays the Analyst Agent logo.
+ */
+export function CraftAppIcon({ className, size = 64 }: CraftAppIconProps) {
   return (
     <img
       src={analystLogo}

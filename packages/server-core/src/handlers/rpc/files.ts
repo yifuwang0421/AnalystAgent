@@ -1,13 +1,25 @@
-import { readFile, writeFile, unlink, mkdir, readdir, stat } from 'fs/promises'
-import { isAbsolute, join, resolve, dirname, parse as parsePath } from 'path'
+import { readFile, writeFile, unlink, mkdir, readdir, stat, rm } from 'fs/promises'
+import { isAbsolute, join, resolve, dirname, relative, sep, parse as parsePath } from 'path'
 import { homedir } from 'os'
 import { validatePathFormat } from '../../utils/path-validation'
 import { randomUUID } from 'crypto'
-import { RPC_CHANNELS, type FileAttachment, type DirectoryListingResult } from '@craft-agent/shared/protocol'
+import {
+  RPC_CHANNELS,
+  type DirectoryListingResult,
+  type FileAttachment,
+  type WorkspaceKnowledgeSearchResult,
+  type WorkspaceResearchFileEntry,
+  type WorkspaceResearchFilesResult,
+  type CreateWorkspaceResearchItemResult,
+  type DeleteWorkspaceResearchItemResult,
+  type WriteWorkspaceMarkdownResult,
+  type WorkspaceResearchItemType,
+} from '@craft-agent/shared/protocol'
 import type { StoredAttachment } from '@craft-agent/core/types'
 import { readFileAttachment, validateImageForClaudeAPI, IMAGE_LIMITS } from '@craft-agent/shared/utils'
 import { getSessionAttachmentsPath, validateSessionId } from '@craft-agent/shared/sessions'
 import { getWorkspaceByNameOrId } from '@craft-agent/shared/config'
+import { FINANCE_RESEARCH_DIRS, loadWorkspaceConfig } from '@craft-agent/shared/workspaces'
 import { resizeImageForAPI, inspectImageBuffer } from '@craft-agent/server-core/services'
 import { sanitizeFilename, validateFilePath, getWorkspaceAllowedDirs } from '@craft-agent/server-core/handlers'
 import { MarkItDown } from 'markitdown-js'
@@ -25,11 +37,346 @@ export const HANDLED_CHANNELS = [
   RPC_CHANNELS.file.READ_USER_ATTACHMENT,
   RPC_CHANNELS.file.STORE_ATTACHMENT,
   RPC_CHANNELS.file.GENERATE_THUMBNAIL,
+  RPC_CHANNELS.file.LIST_WORKSPACE_RESEARCH_FILES,
+  RPC_CHANNELS.file.SEARCH_WORKSPACE_KNOWLEDGE,
+  RPC_CHANNELS.file.WRITE_WORKSPACE_MARKDOWN,
+  RPC_CHANNELS.file.CREATE_WORKSPACE_RESEARCH_ITEM,
+  RPC_CHANNELS.file.DELETE_WORKSPACE_RESEARCH_ITEM,
   RPC_CHANNELS.fs.SEARCH,
   RPC_CHANNELS.fs.LIST_DIRECTORY,
 ] as const
 
+const MARKDOWN_FILE_EXTENSIONS = new Set(['.md', '.markdown'])
+const KNOWLEDGE_TEXT_EXTENSIONS = new Set(['.md', '.markdown', '.txt', '.csv'])
+const KNOWLEDGE_MAX_TEXT_BYTES = 512 * 1024
+
+function isPathInside(parent: string, child: string): boolean {
+  const rel = relative(parent, child)
+  return rel === '' || (!!rel && !rel.startsWith('..') && !isAbsolute(rel))
+}
+
+function toPosixRelativePath(root: string, path: string): string {
+  return relative(root, path).split(sep).join('/')
+}
+
+function assertWorkspaceResearchRoot(workspaceId: string): { rootPath: string; researchRoot: string; knowledgeBaseEnabled: boolean } {
+  const workspace = getWorkspaceByNameOrId(workspaceId)
+  if (!workspace) throw new Error(`Workspace not found: ${workspaceId}`)
+
+  const rootPath = resolve(workspace.rootPath)
+  const config = loadWorkspaceConfig(rootPath)
+  const financeConfig = config?.finance
+  const researchRoot = resolve(financeConfig?.researchDirectory || rootPath)
+  if (!isPathInside(rootPath, researchRoot)) {
+    throw new Error('Configured finance research root is outside the workspace')
+  }
+
+  return {
+    rootPath,
+    researchRoot,
+    knowledgeBaseEnabled: financeConfig?.knowledgeBaseEnabled !== false,
+  }
+}
+
+async function listResearchEntry(rootPath: string, path: string): Promise<WorkspaceResearchFileEntry | null> {
+  const info = await stat(path).catch(() => null)
+  if (!info) return null
+
+  const name = parsePath(path).base
+  const relativePath = toPosixRelativePath(rootPath, path)
+  if (info.isDirectory()) {
+    const children = await readdir(path, { withFileTypes: true }).catch(() => [])
+    const childEntries = await Promise.all(
+      children
+        .filter(entry => !entry.name.startsWith('.'))
+        .map(entry => listResearchEntry(rootPath, join(path, entry.name)))
+    )
+
+    return {
+      name,
+      path,
+      relativePath,
+      type: 'directory',
+      mtimeMs: info.mtimeMs,
+      children: childEntries
+        .filter((entry): entry is WorkspaceResearchFileEntry => entry !== null)
+        .sort((a, b) => {
+          if (a.type !== b.type) return a.type === 'directory' ? -1 : 1
+          return a.name.localeCompare(b.name)
+        }),
+    }
+  }
+
+  if (!info.isFile() || !MARKDOWN_FILE_EXTENSIONS.has(parsePath(path).ext.toLowerCase())) return null
+
+  return {
+    name,
+    path,
+    relativePath,
+    type: 'file',
+    mtimeMs: info.mtimeMs,
+    size: info.size,
+  }
+}
+
+async function walkFiles(rootPath: string): Promise<string[]> {
+  const results: string[] = []
+  const queue = [rootPath]
+  while (queue.length > 0) {
+    const current = queue.shift()!
+    const entries = await readdir(current, { withFileTypes: true }).catch(() => [])
+    for (const entry of entries) {
+      if (entry.name.startsWith('.')) continue
+      const nextPath = join(current, entry.name)
+      if (entry.isDirectory()) queue.push(nextPath)
+      else if (entry.isFile()) results.push(nextPath)
+    }
+  }
+  return results
+}
+
+function titleFromMarkdown(content: string, fallback: string): string {
+  const heading = content.split(/\r?\n/).find(line => line.trim().startsWith('# '))
+  return heading?.replace(/^#\s+/, '').trim() || fallback
+}
+
+function snippetForMatch(content: string, query: string): string {
+  const lowerContent = content.toLowerCase()
+  const index = lowerContent.indexOf(query.toLowerCase())
+  if (index === -1) return content.trim().slice(0, 180)
+  const start = Math.max(0, index - 70)
+  const end = Math.min(content.length, index + query.length + 90)
+  return content.slice(start, end).replace(/\s+/g, ' ').trim()
+}
+
+function assertMarkdownWriteTarget(researchRoot: string, path: string): void {
+  const ext = parsePath(path).ext.toLowerCase()
+  if (!MARKDOWN_FILE_EXTENSIONS.has(ext)) {
+    throw new Error('Only .md and .markdown files can be written from the research workspace')
+  }
+
+  const allowed = FINANCE_RESEARCH_DIRS.some(dir => isPathInside(resolve(researchRoot, dir), path))
+  if (!allowed) {
+    throw new Error('Markdown writes are limited to finance research folders')
+  }
+}
+
+function assertResearchItemTarget(researchRoot: string, path: string): void {
+  const allowed = FINANCE_RESEARCH_DIRS.some(dir => isPathInside(resolve(researchRoot, dir), path))
+  if (!allowed) {
+    throw new Error('Research workspace file operations are limited to finance research folders')
+  }
+}
+
+function assertNotTopLevelResearchDir(researchRoot: string, path: string): void {
+  const isTopLevelDir = FINANCE_RESEARCH_DIRS.some(dir => resolve(researchRoot, dir) === path)
+  if (isTopLevelDir) {
+    throw new Error('Top-level finance research folders cannot be deleted')
+  }
+}
+
+function normalizeResearchItemName(rawName: string): string {
+  const name = typeof rawName === 'string' ? rawName.trim() : ''
+  if (!name) throw new Error('Name is required')
+  if (name === '.' || name === '..' || name.includes('/') || name.includes('\\')) {
+    throw new Error('Name cannot contain path separators')
+  }
+  if (name.startsWith('.')) {
+    throw new Error('Hidden files and folders are not supported in the research workspace')
+  }
+  return name
+}
+
 export function registerFilesHandlers(server: RpcServer, deps: HandlerDeps): void {
+  server.handle(RPC_CHANNELS.file.LIST_WORKSPACE_RESEARCH_FILES, async (ctx, workspaceId?: string): Promise<WorkspaceResearchFilesResult> => {
+    const targetWorkspaceId = workspaceId ?? ctx.workspaceId ?? deps.windowManager?.getWorkspaceForWindow(ctx.webContentsId!)
+    if (!targetWorkspaceId) throw new Error('Workspace id is required')
+
+    const { researchRoot } = assertWorkspaceResearchRoot(targetWorkspaceId)
+    const entries = await Promise.all(
+      FINANCE_RESEARCH_DIRS.map(dir => listResearchEntry(researchRoot, join(researchRoot, dir)))
+    )
+
+    return {
+      rootPath: researchRoot,
+      entries: entries.filter((entry): entry is WorkspaceResearchFileEntry => entry !== null),
+    }
+  })
+
+  server.handle(RPC_CHANNELS.file.SEARCH_WORKSPACE_KNOWLEDGE, async (
+    ctx,
+    workspaceId?: string,
+    rawQuery?: string,
+    rawMaxResults?: number
+  ) => {
+    const targetWorkspaceId = workspaceId ?? ctx.workspaceId ?? deps.windowManager?.getWorkspaceForWindow(ctx.webContentsId!)
+    if (!targetWorkspaceId) throw new Error('Workspace id is required')
+
+    const query = typeof rawQuery === 'string' ? rawQuery.trim() : ''
+    const maxResults = Number.isFinite(rawMaxResults) ? Math.max(1, Math.min(50, Math.floor(rawMaxResults!))) : 12
+    if (!query) {
+      return { results: [], resultCount: 0, note: 'Enter a search query to find reusable knowledge materials.' }
+    }
+
+    const { researchRoot, knowledgeBaseEnabled } = assertWorkspaceResearchRoot(targetWorkspaceId)
+    if (!knowledgeBaseEnabled) {
+      return { results: [], resultCount: 0, note: 'Knowledge base search is disabled for this workspace.' }
+    }
+
+    const knowledgeRoot = resolve(researchRoot, 'knowledge')
+    if (!isPathInside(researchRoot, knowledgeRoot)) {
+      throw new Error('Knowledge directory is outside the workspace')
+    }
+
+    const lowerQuery = query.toLowerCase()
+    const files = await walkFiles(knowledgeRoot)
+    const results: WorkspaceKnowledgeSearchResult[] = []
+
+    for (const file of files) {
+      if (results.length >= maxResults) break
+      if (!isPathInside(knowledgeRoot, file)) continue
+
+      const info = await stat(file).catch(() => null)
+      if (!info || !info.isFile()) continue
+
+      const relativePath = toPosixRelativePath(researchRoot, file)
+      const name = parsePath(file).base
+      const ext = parsePath(file).ext.toLowerCase()
+      const filenameMatches = name.toLowerCase().includes(lowerQuery) || relativePath.toLowerCase().includes(lowerQuery)
+
+      if (KNOWLEDGE_TEXT_EXTENSIONS.has(ext) && info.size <= KNOWLEDGE_MAX_TEXT_BYTES) {
+        const content = await readFile(file, 'utf-8').catch(() => '')
+        if (content.toLowerCase().includes(lowerQuery)) {
+          results.push({
+            title: titleFromMarkdown(content, name),
+            path: file,
+            relativePath,
+            snippet: snippetForMatch(content, query),
+            sourceType: 'content',
+            mtimeMs: info.mtimeMs,
+            size: info.size,
+          })
+          continue
+        }
+      }
+
+      if (filenameMatches) {
+        results.push({
+          title: name,
+          path: file,
+          relativePath,
+          snippet: 'Binary or large file matched by filename. Open it with the system app to inspect the material.',
+          sourceType: 'filename',
+          mtimeMs: info.mtimeMs,
+          size: info.size,
+        })
+      }
+    }
+
+    return {
+      results,
+      resultCount: results.length,
+      note: results.length === 0 ? 'No matching knowledge materials found.' : undefined,
+    }
+  })
+
+  server.handle(RPC_CHANNELS.file.WRITE_WORKSPACE_MARKDOWN, async (
+    ctx,
+    path: string,
+    content: string,
+    expectedMtimeMs?: number
+  ): Promise<WriteWorkspaceMarkdownResult> => {
+    const workspaceId = ctx.workspaceId ?? deps.windowManager?.getWorkspaceForWindow(ctx.webContentsId!)
+    if (!workspaceId) throw new Error('Workspace id is required')
+
+    const { researchRoot } = assertWorkspaceResearchRoot(workspaceId)
+    const targetPath = resolve(path)
+    if (!isPathInside(researchRoot, targetPath)) {
+      throw new Error('Markdown writes are limited to finance research folders')
+    }
+    assertMarkdownWriteTarget(researchRoot, targetPath)
+
+    const current = await stat(targetPath).catch(() => null)
+    if (typeof expectedMtimeMs === 'number' && current && Math.abs(current.mtimeMs - expectedMtimeMs) > 1) {
+      throw new Error('Stale write rejected because the file changed on disk')
+    }
+
+    await mkdir(dirname(targetPath), { recursive: true })
+    await writeFile(targetPath, content, 'utf-8')
+    const next = await stat(targetPath)
+    return { ok: true, mtimeMs: next.mtimeMs }
+  })
+
+  server.handle(RPC_CHANNELS.file.CREATE_WORKSPACE_RESEARCH_ITEM, async (
+    ctx,
+    workspaceId: string | undefined,
+    parentPath: string,
+    rawName: string,
+    type: WorkspaceResearchItemType,
+    content?: string
+  ): Promise<CreateWorkspaceResearchItemResult> => {
+    const targetWorkspaceId = workspaceId ?? ctx.workspaceId ?? deps.windowManager?.getWorkspaceForWindow(ctx.webContentsId!)
+    if (!targetWorkspaceId) throw new Error('Workspace id is required')
+    if (type !== 'file' && type !== 'directory') throw new Error('Unsupported research item type')
+
+    const { researchRoot } = assertWorkspaceResearchRoot(targetWorkspaceId)
+    const safeParent = resolve(parentPath)
+    if (!isPathInside(researchRoot, safeParent)) {
+      throw new Error('Research workspace file operations are limited to finance research folders')
+    }
+    assertResearchItemTarget(researchRoot, safeParent)
+
+    const name = normalizeResearchItemName(rawName)
+    const targetPath = resolve(safeParent, name)
+    if (!isPathInside(safeParent, targetPath)) {
+      throw new Error('Research item path must stay inside the selected folder')
+    }
+    assertResearchItemTarget(researchRoot, targetPath)
+
+    const existing = await stat(targetPath).catch(() => null)
+    if (existing) throw new Error('A file or folder already exists at this path')
+
+    if (type === 'directory') {
+      await mkdir(targetPath, { recursive: false })
+    } else {
+      assertMarkdownWriteTarget(researchRoot, targetPath)
+      await writeFile(targetPath, content ?? '', 'utf-8')
+    }
+
+    const entry = await listResearchEntry(researchRoot, targetPath)
+    if (!entry) throw new Error('Created item is not visible in the research workspace')
+    return { ok: true, entry }
+  })
+
+  server.handle(RPC_CHANNELS.file.DELETE_WORKSPACE_RESEARCH_ITEM, async (
+    ctx,
+    workspaceId: string | undefined,
+    path: string
+  ): Promise<DeleteWorkspaceResearchItemResult> => {
+    const targetWorkspaceId = workspaceId ?? ctx.workspaceId ?? deps.windowManager?.getWorkspaceForWindow(ctx.webContentsId!)
+    if (!targetWorkspaceId) throw new Error('Workspace id is required')
+
+    const { researchRoot } = assertWorkspaceResearchRoot(targetWorkspaceId)
+    const targetPath = resolve(path)
+    if (!isPathInside(researchRoot, targetPath)) {
+      throw new Error('Research workspace file operations are limited to finance research folders')
+    }
+    assertResearchItemTarget(researchRoot, targetPath)
+    assertNotTopLevelResearchDir(researchRoot, targetPath)
+
+    const info = await stat(targetPath).catch(() => null)
+    if (!info) throw new Error('File or folder does not exist')
+    if (info.isDirectory()) {
+      await rm(targetPath, { recursive: true, force: false })
+    } else if (info.isFile()) {
+      await unlink(targetPath)
+    } else {
+      throw new Error('Only files and folders can be deleted from the research workspace')
+    }
+
+    return { ok: true }
+  })
+
   // Read a file (with path validation to prevent traversal attacks)
   server.handle(RPC_CHANNELS.file.READ, async (ctx, path: string) => {
     try {

@@ -14,6 +14,7 @@ import type {
   SessionFilter,
   SourceFilter,
   AutomationFilter,
+  FilesScope,
   RightSidebarPanel,
 } from './types'
 import { isValidSettingsSubpage, type SettingsSubpage } from './settings-registry'
@@ -35,7 +36,7 @@ export interface ParsedRoute {
 // Compound Route Types (new format)
 // =============================================================================
 
-export type NavigatorType = 'sessions' | 'sources' | 'skills' | 'automations' | 'settings'
+export type NavigatorType = 'sessions' | 'sources' | 'skills' | 'automations' | 'settings' | 'files' | 'agents'
 
 export interface ParsedCompoundRoute {
   /** The navigator type */
@@ -46,6 +47,8 @@ export interface ParsedCompoundRoute {
   sourceFilter?: SourceFilter
   /** Automation filter (only for automations navigator) */
   automationFilter?: AutomationFilter
+  /** Files scope (only for files navigator) */
+  filesScope?: FilesScope
   /** Details page info (null for empty state) */
   details: {
     type: string
@@ -61,7 +64,7 @@ export interface ParsedCompoundRoute {
  * Known prefixes that indicate a compound route
  */
 const COMPOUND_ROUTE_PREFIXES = [
-  'allSessions', 'flagged', 'archived', 'state', 'label', 'view', 'sources', 'skills', 'automations', 'settings'
+  'allSessions', 'flagged', 'archived', 'state', 'label', 'view', 'sources', 'skills', 'automations', 'settings', 'files', 'knowledge', 'agents'
 ]
 
 /**
@@ -93,6 +96,26 @@ export function parseCompoundRoute(route: string): ParsedCompoundRoute | null {
   if (segments.length === 0) return null
 
   const first = segments[0]
+
+  if (first === 'files' || first === 'knowledge') {
+    const filesScope: FilesScope = first === 'knowledge' || segments[1] === 'knowledge' ? 'knowledge' : 'research'
+    const fileIndex = segments.indexOf('file')
+    if (fileIndex >= 0 && segments[fileIndex + 1]) {
+      return {
+        navigator: 'files',
+        filesScope,
+        details: { type: 'file', id: decodeURIComponent(segments[fileIndex + 1]) },
+      }
+    }
+    return { navigator: 'files', filesScope, details: null }
+  }
+
+  if (first === 'agents') {
+    if (segments[1] === 'agent' && segments[2]) {
+      return { navigator: 'agents', details: { type: 'agent', id: segments[2] } }
+    }
+    return { navigator: 'agents', details: null }
+  }
 
   // Settings navigator
   if (first === 'settings') {
@@ -259,6 +282,17 @@ export function parseCompoundRoute(route: string): ParsedCompoundRoute | null {
  * Build a compound route string from parsed state
  */
 export function buildCompoundRoute(parsed: ParsedCompoundRoute): string {
+  if (parsed.navigator === 'files') {
+    const base = parsed.filesScope === 'knowledge' ? 'knowledge' : 'files/research'
+    if (!parsed.details) return base
+    return `${base}/file/${encodeURIComponent(parsed.details.id)}`
+  }
+
+  if (parsed.navigator === 'agents') {
+    if (!parsed.details) return 'agents'
+    return `agents/agent/${parsed.details.id}`
+  }
+
   if (parsed.navigator === 'settings') {
     if (!parsed.details) return 'settings'
     return `settings/${parsed.details.type}`
@@ -379,6 +413,19 @@ export function parseRoute(route: string): ParsedRoute | null {
  * Convert a parsed compound route to ParsedRoute format (type: 'view')
  */
 function convertCompoundToViewRoute(compound: ParsedCompoundRoute): ParsedRoute {
+  if (compound.navigator === 'files') {
+    return {
+      type: 'view',
+      name: compound.filesScope === 'knowledge' ? 'knowledge' : 'files',
+      id: compound.details?.id,
+      params: {},
+    }
+  }
+
+  if (compound.navigator === 'agents') {
+    return { type: 'view', name: 'agents', id: compound.details?.id, params: {} }
+  }
+
   // Settings
   if (compound.navigator === 'settings') {
     const subpage = compound.details?.type || 'app'
@@ -496,6 +543,21 @@ export function parseRouteToNavigationState(
  * Convert a ParsedCompoundRoute to NavigationState
  */
 function convertCompoundToNavigationState(compound: ParsedCompoundRoute): NavigationState {
+  if (compound.navigator === 'files') {
+    return {
+      navigator: 'files',
+      scope: compound.filesScope ?? 'research',
+      details: compound.details ? { type: 'file', path: compound.details.id } : null,
+    }
+  }
+
+  if (compound.navigator === 'agents') {
+    return {
+      navigator: 'agents',
+      details: compound.details ? { type: 'agent', agentId: compound.details.id } : null,
+    }
+  }
+
   // Settings
   if (compound.navigator === 'settings') {
     if (!compound.details) {
@@ -587,6 +649,23 @@ function convertParsedRouteToNavigationState(parsed: ParsedRoute): NavigationSta
       return { navigator: 'settings', subpage: 'preferences' }
     case 'sources':
       return { navigator: 'sources', details: null }
+    case 'files':
+      return {
+        navigator: 'files',
+        scope: 'research',
+        details: parsed.id ? { type: 'file', path: parsed.id } : null,
+      }
+    case 'knowledge':
+      return {
+        navigator: 'files',
+        scope: 'knowledge',
+        details: parsed.id ? { type: 'file', path: parsed.id } : null,
+      }
+    case 'agents':
+      return {
+        navigator: 'agents',
+        details: parsed.id ? { type: 'agent', agentId: parsed.id } : null,
+      }
     case 'source-info':
       if (parsed.id) {
         return {
@@ -729,6 +808,21 @@ function navigationStateToCompoundRoute(state: NavigationState): ParsedCompoundR
       navigator: 'automations',
       automationFilter: state.filter ?? undefined,
       details: state.details ? { type: 'automation', id: state.details.automationId } : null,
+    }
+  }
+
+  if (state.navigator === 'files') {
+    return {
+      navigator: 'files',
+      filesScope: state.scope,
+      details: state.details ? { type: 'file', id: state.details.path } : null,
+    }
+  }
+
+  if (state.navigator === 'agents') {
+    return {
+      navigator: 'agents',
+      details: state.details ? { type: 'agent', id: state.details.agentId } : null,
     }
   }
 

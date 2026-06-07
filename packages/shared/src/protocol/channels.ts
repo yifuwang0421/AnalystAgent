@@ -87,6 +87,11 @@ export const RPC_CHANNELS = {
     READ_USER_ATTACHMENT: 'file:readUserAttachment',
     STORE_ATTACHMENT: 'file:storeAttachment',
     GENERATE_THUMBNAIL: 'file:generateThumbnail',
+    LIST_WORKSPACE_RESEARCH_FILES: 'file:listWorkspaceResearchFiles',
+    SEARCH_WORKSPACE_KNOWLEDGE: 'file:searchWorkspaceKnowledge',
+    WRITE_WORKSPACE_MARKDOWN: 'file:writeWorkspaceMarkdown',
+    CREATE_WORKSPACE_RESEARCH_ITEM: 'file:createWorkspaceResearchItem',
+    DELETE_WORKSPACE_RESEARCH_ITEM: 'file:deleteWorkspaceResearchItem',
   },
   fs: {
     SEARCH: 'fs:search',

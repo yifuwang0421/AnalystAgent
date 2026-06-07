@@ -23,6 +23,7 @@ import {
   Pencil,
   FilePenLine,
   GitBranch,
+  Save,
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { Markdown } from '../markdown'
@@ -320,6 +321,8 @@ export interface TurnCardProps {
   onOpenUrl?: (url: string) => void
   /** Callback to open response in Monaco editor */
   onPopOut?: (text: string) => void
+  /** Callback to save response markdown into the active research workspace */
+  onSaveToWorkspace?: (text: string) => void
   /** Callback to open turn details in a new window */
   onOpenDetails?: () => void
   /** Callback to open individual activity details in Monaco */
@@ -1393,6 +1396,8 @@ export interface ResponseCardProps {
   onOpenUrl?: (url: string) => void
   /** Callback to open response in Monaco editor */
   onPopOut?: () => void
+  /** Callback to save response markdown into the active research workspace */
+  onSaveToWorkspace?: () => void
   /** Card variant - 'response' for AI messages, 'plan' for plan messages */
   variant?: 'response' | 'plan'
   /** Parent session ID (used to reset local annotation/island UI state on session switches) */
@@ -1652,6 +1657,7 @@ export function ResponseCard({
   onOpenFile,
   onOpenUrl,
   onPopOut,
+  onSaveToWorkspace,
   variant = 'response',
   sessionId,
   messageId,
@@ -2523,6 +2529,19 @@ export function ResponseCard({
                     <span>Markdown</span>
                   </button>
                 )}
+                {onSaveToWorkspace && (
+                  <button
+                    onClick={onSaveToWorkspace}
+                    className={cn(
+                      "turn-action-btn flex items-center gap-1.5 transition-colors select-none",
+                      "text-muted-foreground hover:text-foreground",
+                      "focus:outline-none focus-visible:underline"
+                    )}
+                  >
+                    <Save className={SIZE_CONFIG.iconSize} />
+                    <span>保存至工作区</span>
+                  </button>
+                )}
               </div>
 
               {/* Right side */}
@@ -2749,6 +2768,7 @@ export const TurnCard = React.memo(function TurnCard({
   onOpenFile,
   onOpenUrl,
   onPopOut,
+  onSaveToWorkspace,
   onOpenDetails,
   onOpenActivityDetails,
   onOpenMultiFileDiff,
@@ -3117,6 +3137,7 @@ export const TurnCard = React.memo(function TurnCard({
             onOpenFile={onOpenFile}
             onOpenUrl={onOpenUrl}
             onPopOut={onPopOut ? () => onPopOut(planActivity.content || '') : undefined}
+            onSaveToWorkspace={onSaveToWorkspace ? () => onSaveToWorkspace(planActivity.content || '') : undefined}
             variant="plan"
             messageId={planActivity.messageId}
             annotations={planActivity.annotations}
@@ -3156,6 +3177,7 @@ export const TurnCard = React.memo(function TurnCard({
                 onOpenFile={onOpenFile}
                 onOpenUrl={onOpenUrl}
                 onPopOut={onPopOut ? () => onPopOut(response.text) : undefined}
+                onSaveToWorkspace={onSaveToWorkspace ? () => onSaveToWorkspace(response.text) : undefined}
                 variant={response.isPlan ? 'plan' : 'response'}
                 messageId={response.messageId}
                 annotations={response.annotations}
@@ -3188,6 +3210,7 @@ export const TurnCard = React.memo(function TurnCard({
             onOpenFile={onOpenFile}
             onOpenUrl={onOpenUrl}
             onPopOut={onPopOut ? () => onPopOut(response.text) : undefined}
+            onSaveToWorkspace={onSaveToWorkspace ? () => onSaveToWorkspace(response.text) : undefined}
             variant={response.isPlan ? 'plan' : 'response'}
             messageId={response.messageId}
             annotations={response.annotations}

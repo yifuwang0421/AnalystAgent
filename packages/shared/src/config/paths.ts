@@ -17,7 +17,7 @@ import { join } from 'path';
 
 // Allow override via environment variable for multi-instance dev
 // Falls back to default ~/.analyst-agent/ for production and non-numbered dev folders
-export const LEGACY_CONFIG_DIR = join(homedir(), '.analyst-agent');
+export const LEGACY_CONFIG_DIR = join(homedir(), '.craft-agent');
 export const CONFIG_DIR = process.env.ANALYST_CONFIG_DIR
   || process.env.CRAFT_CONFIG_DIR
   || join(homedir(), '.analyst-agent');

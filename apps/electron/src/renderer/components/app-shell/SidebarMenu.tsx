@@ -92,31 +92,40 @@ export function SidebarMenu({
   // New Session: only shows "Open in New Window"
   if (type === 'newSession') {
     return (
-      <MenuItem onClick={() => window.electronAPI.openUrl('analystagent://action/new-session?window=focused')}>
+      <MenuItem onClick={() => window.electronAPI.openUrl('craftagents://action/new-session?window=focused')}>
         <AppWindow className="h-3.5 w-3.5" />
         <span className="flex-1">{t("sidebarMenu.openInNewWindow")}</span>
       </MenuItem>
     )
   }
 
-  // All Sessions / Status / Flagged: show "Configure Statuses" (+ "Mark All Read" for allSessions)
-  if ((type === 'allSessions' || type === 'status' || type === 'flagged') && onConfigureStatuses) {
+  // All Sessions / Status / Flagged: show relevant session actions.
+  if (type === 'allSessions' && (onMarkAllRead || onConfigureStatuses)) {
     return (
       <>
-        {type === 'allSessions' && onMarkAllRead && (
-          <>
-            <MenuItem onClick={onMarkAllRead}>
-              <CheckCheck className="h-3.5 w-3.5" />
-              <span className="flex-1">{t("sidebarMenu.markAllRead")}</span>
-            </MenuItem>
-            <Separator />
-          </>
+        {onMarkAllRead && (
+          <MenuItem onClick={onMarkAllRead}>
+            <CheckCheck className="h-3.5 w-3.5" />
+            <span className="flex-1">{t("sidebarMenu.markAllRead")}</span>
+          </MenuItem>
         )}
-        <MenuItem onClick={onConfigureStatuses}>
-          <Settings2 className="h-3.5 w-3.5" />
-          <span className="flex-1">{t("sidebarMenu.configureStatuses")}</span>
-        </MenuItem>
+        {onMarkAllRead && onConfigureStatuses && <Separator />}
+        {onConfigureStatuses && (
+          <MenuItem onClick={onConfigureStatuses}>
+            <Settings2 className="h-3.5 w-3.5" />
+            <span className="flex-1">{t("sidebarMenu.configureStatuses")}</span>
+          </MenuItem>
+        )}
       </>
+    )
+  }
+
+  if ((type === 'status' || type === 'flagged') && onConfigureStatuses) {
+    return (
+      <MenuItem onClick={onConfigureStatuses}>
+        <Settings2 className="h-3.5 w-3.5" />
+        <span className="flex-1">{t("sidebarMenu.configureStatuses")}</span>
+      </MenuItem>
     )
   }
 

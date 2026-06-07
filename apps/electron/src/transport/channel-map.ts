@@ -78,6 +78,11 @@ export const CHANNEL_MAP = {
   readUserAttachment: invoke(RPC_CHANNELS.file.READ_USER_ATTACHMENT),
   storeAttachment: invoke(RPC_CHANNELS.file.STORE_ATTACHMENT),
   generateThumbnail: invoke(RPC_CHANNELS.file.GENERATE_THUMBNAIL),
+  listWorkspaceResearchFiles: invoke(RPC_CHANNELS.file.LIST_WORKSPACE_RESEARCH_FILES),
+  searchWorkspaceKnowledge: invoke(RPC_CHANNELS.file.SEARCH_WORKSPACE_KNOWLEDGE),
+  writeWorkspaceMarkdown: invoke(RPC_CHANNELS.file.WRITE_WORKSPACE_MARKDOWN),
+  createWorkspaceResearchItem: invoke(RPC_CHANNELS.file.CREATE_WORKSPACE_RESEARCH_ITEM),
+  deleteWorkspaceResearchItem: invoke(RPC_CHANNELS.file.DELETE_WORKSPACE_RESEARCH_ITEM),
 
   // Theme
   getSystemTheme: invoke(RPC_CHANNELS.theme.GET_SYSTEM_PREFERENCE),

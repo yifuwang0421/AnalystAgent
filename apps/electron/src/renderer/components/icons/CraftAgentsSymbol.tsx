@@ -1,10 +1,13 @@
 import analystLogo from "@/assets/analyst_agent_logo.png"
 
-interface AnalystAgentLogoProps {
+interface CraftAgentsSymbolProps {
   className?: string
 }
 
-export function AnalystAgentLogo({ className }: AnalystAgentLogoProps) {
+/**
+ * Analyst Agent symbol.
+ */
+export function CraftAgentsSymbol({ className }: CraftAgentsSymbolProps) {
   return (
     <img
       src={analystLogo}

@@ -31,6 +31,8 @@ import {
   isSettingsNavigation,
   isSkillsNavigation,
   isAutomationsNavigation,
+  isFilesNavigation,
+  isAgentsNavigation,
 } from '@/contexts/NavigationContext'
 import { useSessionSelection, useIsMultiSelectActive, useSelectedIds, useSelectionCount } from '@/hooks/useSession'
 import { sourceSelection, skillSelection, automationSelection } from '@/hooks/useEntitySelection'
@@ -43,6 +45,10 @@ import { AutomationInfoPage } from '../automations/AutomationInfoPage'
 import type { ExecutionEntry } from '../automations/types'
 import { automationsAtom } from '@/atoms/automations'
 import { SendResourceToWorkspaceDialog, type SendResourceType } from './SendResourceToWorkspaceDialog'
+import { ResearchFileWorkspace } from './ResearchFileWorkspace'
+import { AgentsPresetPanel, type AgentPreset } from './AgentsPresetPanel'
+import { navigate, routes } from '@/lib/navigate'
+import { addAgentSelectionListener } from '@/lib/agent-presets'
 
 export interface MainContentPanelProps {
   /** Whether both sidebar and navigator are hidden (focus mode / CMD+.) */
@@ -152,6 +158,26 @@ export function MainContentPanel({
     setSendDialogOpen(true)
   }, [])
 
+  const handleUseAgentPreset = useCallback((preset: AgentPreset) => {
+    navigate(routes.action.newSession({ name: preset.title, agentId: preset.id }))
+  }, [navigate])
+
+  const [selectedAgentId, setSelectedAgentId] = useState<string | null>(() =>
+    isAgentsNavigation(navState) ? navState.details?.agentId ?? null : null
+  )
+
+  useEffect(() => {
+    if (isAgentsNavigation(navState)) {
+      setSelectedAgentId(navState.details?.agentId ?? null)
+    }
+  }, [navState])
+
+  useEffect(() => {
+    return addAgentSelectionListener((detail) => {
+      setSelectedAgentId(detail.agentId)
+    })
+  }, [])
+
   const selectedMetas = useMemo(() => {
     const metas: SessionMeta[] = []
     selectedIds.forEach((id) => {
@@ -240,6 +266,25 @@ export function MainContentPanel({
     return wrapWithStoplight(
       <Panel variant="grow" className={className}>
         <SettingsPageComponent />
+      </Panel>
+    )
+  }
+
+  if (isFilesNavigation(navState)) {
+    return wrapWithStoplight(
+      <Panel variant="grow" className={className}>
+        <ResearchFileWorkspace workspaceId={activeWorkspaceId} scope={navState.scope} />
+      </Panel>
+    )
+  }
+
+  if (isAgentsNavigation(navState)) {
+    return wrapWithStoplight(
+      <Panel variant="grow" className={className}>
+        <AgentsPresetPanel
+          selectedAgentId={selectedAgentId}
+          onUseAgent={handleUseAgentPreset}
+        />
       </Panel>
     )
   }

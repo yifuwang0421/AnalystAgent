@@ -25,7 +25,6 @@ import {
   Calendar,
   Check,
   Flag,
-  Inbox,
   Layers,
   ListFilter,
   MailOpen,
@@ -44,7 +43,6 @@ import {
 } from '@/components/ui/drawer'
 import { HeaderIconButton } from '@/components/ui/HeaderIconButton'
 import { LabelIcon } from '@/components/ui/label-icon'
-import { filterSessionStatuses } from '@/components/ui/label-menu'
 import {
   createLabelMenuItems,
   filterItems as filterLabelMenuItems,
@@ -52,7 +50,6 @@ import {
 } from '@/components/ui/label-menu-utils'
 import { findLabelById } from '@craft-agent/shared/labels'
 import type { LabelConfig } from '@craft-agent/shared/labels'
-import { type SessionStatus, type SessionStatusId } from '@/config/session-status-config'
 import type { ChatGroupingMode } from './SessionList'
 
 type FilterMode = 'include' | 'exclude'
@@ -64,12 +61,6 @@ interface PinnedFilters {
 }
 
 interface CompactSessionListFilterProps {
-  listFilter: Map<SessionStatusId, FilterMode>
-  setListFilter: (
-    updater:
-      | Map<SessionStatusId, FilterMode>
-      | ((prev: Map<SessionStatusId, FilterMode>) => Map<SessionStatusId, FilterMode>),
-  ) => void
   labelFilter: Map<string, FilterMode>
   setLabelFilter: (
     updater:
@@ -77,27 +68,21 @@ interface CompactSessionListFilterProps {
       | ((prev: Map<string, FilterMode>) => Map<string, FilterMode>),
   ) => void
   pinnedFilters: PinnedFilters
-  effectiveSessionStatuses: SessionStatus[]
   displayLabelConfigs: LabelConfig[]
   labelConfigs: LabelConfig[]
   chatGroupingMode: ChatGroupingMode
   setChatGroupingMode: (mode: ChatGroupingMode) => void
-  isStateSubView: boolean
   onOpenSearch: () => void
 }
 
 export function CompactSessionListFilter({
-  listFilter,
-  setListFilter,
   labelFilter,
   setLabelFilter,
   pinnedFilters,
-  effectiveSessionStatuses,
   displayLabelConfigs,
   labelConfigs,
   chatGroupingMode,
   setChatGroupingMode,
-  isStateSubView,
   onOpenSearch,
 }: CompactSessionListFilterProps) {
   const { t } = useTranslation()
@@ -118,42 +103,17 @@ export function CompactSessionListFilter({
 
   const results = React.useMemo(() => {
     return {
-      states: isSearching
-        ? filterSessionStatuses(effectiveSessionStatuses, trimmedQuery)
-        : effectiveSessionStatuses,
       labels: isSearching
         ? filterLabelMenuItems(flatLabelItems, trimmedQuery)
         : flatLabelItems,
     }
-  }, [isSearching, trimmedQuery, effectiveSessionStatuses, flatLabelItems])
+  }, [isSearching, trimmedQuery, flatLabelItems])
 
-  const hasUserFilter = listFilter.size > 0 || labelFilter.size > 0
+  const hasUserFilter = labelFilter.size > 0
   const hasAnyFilter =
     hasUserFilter
     || pinnedFilters.pinnedFlagged
-    || !!pinnedFilters.pinnedStatusId
     || !!pinnedFilters.pinnedLabelId
-
-  const toggleStatus = (id: SessionStatusId) => {
-    if (id === pinnedFilters.pinnedStatusId) return
-    setListFilter(prev => {
-      const next = new Map(prev)
-      if (next.has(id)) next.delete(id)
-      else next.set(id, 'include')
-      return next
-    })
-  }
-
-  const cycleStatusMode = (id: SessionStatusId) => {
-    setListFilter(prev => {
-      const next = new Map(prev)
-      const current = next.get(id)
-      if (current === 'include') next.set(id, 'exclude')
-      else if (current === 'exclude') next.delete(id)
-      else next.set(id, 'include')
-      return next
-    })
-  }
 
   const toggleLabel = (id: string) => {
     if (id === pinnedFilters.pinnedLabelId) return
@@ -201,7 +161,6 @@ export function CompactSessionListFilter({
             <button
               type="button"
               onClick={() => {
-                setListFilter(new Map())
                 setLabelFilter(new Map())
               }}
               className="text-xs text-muted-foreground hover:text-foreground"
@@ -218,7 +177,7 @@ export function CompactSessionListFilter({
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder={t('sidebar.searchStatusesLabels')}
+              placeholder={t('sidebar.searchLabels', 'Search labels...')}
               className="flex-1 min-w-0 bg-transparent text-sm text-foreground placeholder:text-muted-foreground outline-none"
             />
             {query && (
@@ -238,32 +197,8 @@ export function CompactSessionListFilter({
           {!isSearching && hasAnyFilter && (
             <PinnedSummary
               pinnedFilters={pinnedFilters}
-              effectiveSessionStatuses={effectiveSessionStatuses}
               labelConfigs={labelConfigs}
             />
-          )}
-
-          {results.states.length > 0 && (
-            <Section title={t('sidebar.statuses')}>
-              {results.states.map(state => {
-                const isPinned = state.id === pinnedFilters.pinnedStatusId
-                const mode = listFilter.get(state.id)
-                const colorize = state.iconColorable
-                return (
-                  <FilterRow
-                    key={state.id}
-                    icon={state.icon}
-                    iconColor={colorize ? state.resolvedColor : undefined}
-                    bareIcon
-                    label={state.label}
-                    mode={mode}
-                    pinned={isPinned}
-                    onTap={() => toggleStatus(state.id)}
-                    onModeTap={mode ? () => cycleStatusMode(state.id) : undefined}
-                  />
-                )
-              })}
-            </Section>
           )}
 
           {results.labels.length > 0 && (
@@ -295,25 +230,19 @@ export function CompactSessionListFilter({
             </Section>
           )}
 
-          {isSearching && results.states.length === 0 && results.labels.length === 0 && (
+          {isSearching && results.labels.length === 0 && (
             <div className="px-4 py-6 text-center text-sm text-muted-foreground">
               No matches
             </div>
           )}
 
-          {!isSearching && !isStateSubView && (
+          {!isSearching && (
             <Section title={t('sidebar.group')} icon={<Layers className="h-3.5 w-3.5" />}>
               <FilterRow
                 icon={<Calendar className="h-4 w-4" />}
                 label={t('sidebar.groupByDate')}
                 radioSelected={chatGroupingMode === 'date'}
                 onTap={() => setChatGroupingMode('date')}
-              />
-              <FilterRow
-                icon={<Inbox className="h-4 w-4" />}
-                label={t('sidebar.groupByStatus')}
-                radioSelected={chatGroupingMode === 'status'}
-                onTap={() => setChatGroupingMode('status')}
               />
               <FilterRow
                 icon={<MailOpen className="h-4 w-4" />}
@@ -442,40 +371,23 @@ function FilterRow({
 
 function PinnedSummary({
   pinnedFilters,
-  effectiveSessionStatuses,
   labelConfigs,
 }: {
   pinnedFilters: PinnedFilters
-  effectiveSessionStatuses: SessionStatus[]
   labelConfigs: LabelConfig[]
 }) {
   const { t } = useTranslation()
-  const pinnedStatus = pinnedFilters.pinnedStatusId
-    ? effectiveSessionStatuses.find(s => s.id === pinnedFilters.pinnedStatusId)
-    : null
   const pinnedLabel = pinnedFilters.pinnedLabelId
     ? findLabelById(labelConfigs, pinnedFilters.pinnedLabelId)
     : null
 
-  if (!pinnedFilters.pinnedFlagged && !pinnedStatus && !pinnedLabel) return null
+  if (!pinnedFilters.pinnedFlagged && !pinnedLabel) return null
 
   return (
     <div className="px-2 pt-1 pb-2">
       <div className="flex flex-wrap gap-1.5 px-1">
         {pinnedFilters.pinnedFlagged && (
           <PinnedChip icon={<Flag className="h-3.5 w-3.5" />} label={t('sidebar.flagged')} />
-        )}
-        {pinnedStatus && (
-          <PinnedChip
-            icon={
-              <span style={pinnedStatus.iconColorable ? { color: pinnedStatus.resolvedColor } : undefined}>
-                {React.isValidElement(pinnedStatus.icon)
-                  ? React.cloneElement(pinnedStatus.icon as React.ReactElement<{ bare?: boolean }>, { bare: true })
-                  : pinnedStatus.icon}
-              </span>
-            }
-            label={pinnedStatus.label}
-          />
         )}
         {pinnedLabel && (
           <PinnedChip icon={<LabelIcon label={pinnedLabel} size="lg" />} label={pinnedLabel.name} />

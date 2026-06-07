@@ -40,7 +40,7 @@ import { handleGetSessionInfo } from './handlers/get-session-info.ts';
 import { handleListSessions } from './handlers/list-sessions.ts';
 import { handleSendAgentMessage } from './handlers/send-agent-message.ts';
 import { handleListMessagingChannels, handleUnbindMessagingChannel } from './handlers/messaging.ts';
-import { handleResearchWorkflow } from './handlers/research-workflow.ts';
+import { handleAnalystOrchestrate, handleAnalystValidateWorkflow, handleResearchWorkflow } from './handlers/research-workflow.ts';
 import { handleFinanceMarketData } from './handlers/finance-market-data.ts';
 import { handleKnowledgeSearch } from './handlers/knowledge-search.ts';
 
@@ -153,14 +153,33 @@ export const RenderTemplateSchema = z.object({
 });
 
 export const ResearchWorkflowSchema = z.object({
+  request: z.string().optional().describe('Original user request. Pass this when target extraction is ambiguous; the tool may infer target from text like "英伟达(NVDA)".'),
   taskType: z.enum(['auto', 'company_deep_research', 'earnings_review', 'event_impact', 'industry_scan']).optional()
     .describe('Research workflow type. Use auto when the user request should be classified from the target text.'),
-  target: z.string().optional().describe('Company, ticker, industry, event, filing, or report reference to research.'),
+  target: z.string().optional().describe('Company, ticker, industry, event, filing, or report reference to research. If the user already supplied a recognizable company/ticker, fill it here and do not ask for confirmation.'),
   marketScope: z.enum(['cn-hk', 'us', 'global']).optional().describe('Primary market scope for provider routing and assumptions.'),
   asOfDate: z.string().optional().describe('Research date boundary or event date in YYYY-MM-DD when known. Required for event impact.'),
-  depth: z.enum(['quick', 'standard', 'deep']).optional().describe('Depth of the workflow. Deep tasks should spawn all six subagent sessions.'),
+  depth: z.enum(['quick', 'standard', 'deep']).optional().describe('Depth of the workflow. Deep tasks may use more subagents, but the Research Manager should still select only the relevant subset.'),
   outputLanguage: z.enum(['zh-Hans', 'en']).optional().describe('Preferred output language for subagent deliverables and final synthesis.'),
   writeReport: z.boolean().optional().describe('If true, return a contained report write plan path. This tool does not write the report itself.'),
+});
+
+export const AnalystOrchestrateSchema = ResearchWorkflowSchema.extend({
+  maxRevisionRounds: z.number().int().min(0).max(5).optional()
+    .describe('Maximum revision rounds the Research Manager should request from each subagent when the quality gate fails. Default 2.'),
+  selectedSubAgentIds: z.array(z.enum([
+    'industry-analyst',
+    'fundamental-analyst',
+    'forecast-valuation-analyst',
+    'report-writer',
+    'technical-analyst',
+    'risk-control-analyst',
+  ])).optional().describe('Optional Research Manager-selected subset of subagents. Omit for automatic role selection; do not include all six unless all six are genuinely needed.'),
+});
+
+export const AnalystValidateWorkflowSchema = z.object({
+  workflowId: z.string().optional().describe('Workflow id written by analyst_orchestrate, e.g. analyst-lx123abc.'),
+  manifestPath: z.string().optional().describe('Absolute or finance-research-directory-relative path to a workflow manifest.json.'),
 });
 
 export const FinanceMarketDataSchema = z.object({
@@ -430,7 +449,27 @@ Use this before substantial investment research. It classifies the task, checks 
 
 If key inputs are missing (target, event date, earnings period, etc.), it returns hitl_clarification_required instead of guessing.
 
-For ready workflows, the main agent should spawn the six subagents by default with spawn_session and use send_agent_message for revision loops when evidence is incomplete.`,
+This is read-only planning. For substantial research that should actually dispatch subagents, use analyst_orchestrate instead of stopping after this plan.`,
+
+  analyst_orchestrate: `Dispatch a research-first Analyst Agent workflow with real subagent sessions.
+
+Use this as the default entrypoint for substantial investment research. It builds the same Research Manager plan, selects the most relevant subset from the six fixed specialist subagents, then deterministically spawns those selected roles as independent sessions.
+
+The spawned subagents are instructed to use available MCP, skills, sources, knowledge_search, and finance_market_data, then send their structured deliverables back to the parent session through send_agent_message.
+
+If required inputs are missing, ask the user one concise clarification question. Do not show the workflow JSON, task cards, internal status tables, or implementation details.
+
+Do not ask for a second confirmation before dispatching when inputs are sufficient. Do not use bash, write, or raw spawn_session as a workaround for dispatching this workflow.
+
+The Research Manager must evaluate returned deliverables against the quality gate, request revisions through send_agent_message when evidence is incomplete, and only synthesize the final answer after all selected roles pass, are waived, or have documented unavailable evidence.`,
+
+  analyst_validate_workflow: `Validate an Analyst Agent workflow manifest.
+
+Use this after analyst_orchestrate dispatches subagents, and again before final synthesis when subagents report completed deliverables.
+
+Input either workflowId or manifestPath. The validator reads the controlled manifest under the finance research directory, checks phase/result completeness, completed-role output files, evidenceLedger fields, and known quality flags.
+
+It returns structured ok/errors/warnings/summary/qualityFlags. Do not show raw manifest JSON to the user; summarize the validation result and disclose warnings that affect confidence.`,
 
   finance_market_data: `Fetch normalized read-only finance data through the V1 provider router.
 
@@ -614,6 +653,8 @@ export const SESSION_TOOL_DEFS: SessionToolDef[] = [
   { name: 'script_sandbox', description: TOOL_DESCRIPTIONS.script_sandbox, inputSchema: ScriptSandboxSchema, executionMode: 'registry', safeMode: 'allow', handler: handleScriptSandbox },
   { name: 'render_template', description: TOOL_DESCRIPTIONS.render_template, inputSchema: RenderTemplateSchema, executionMode: 'registry', safeMode: 'allow', handler: handleRenderTemplate },
   { name: 'research_workflow', description: TOOL_DESCRIPTIONS.research_workflow, inputSchema: ResearchWorkflowSchema, executionMode: 'registry', safeMode: 'allow', readOnly: true, handler: handleResearchWorkflow },
+  { name: 'analyst_orchestrate', description: TOOL_DESCRIPTIONS.analyst_orchestrate, inputSchema: AnalystOrchestrateSchema, executionMode: 'registry', safeMode: 'block', handler: handleAnalystOrchestrate },
+  { name: 'analyst_validate_workflow', description: TOOL_DESCRIPTIONS.analyst_validate_workflow, inputSchema: AnalystValidateWorkflowSchema, executionMode: 'registry', safeMode: 'allow', readOnly: true, handler: handleAnalystValidateWorkflow },
   { name: 'finance_market_data', description: TOOL_DESCRIPTIONS.finance_market_data, inputSchema: FinanceMarketDataSchema, executionMode: 'registry', safeMode: 'allow', readOnly: true, handler: handleFinanceMarketData },
   { name: 'knowledge_search', description: TOOL_DESCRIPTIONS.knowledge_search, inputSchema: KnowledgeSearchSchema, executionMode: 'registry', safeMode: 'allow', readOnly: true, handler: handleKnowledgeSearch },
   { name: 'send_developer_feedback', description: TOOL_DESCRIPTIONS.send_developer_feedback, inputSchema: SendDeveloperFeedbackSchema, executionMode: 'registry', safeMode: 'allow', handler: handleSendDeveloperFeedback },

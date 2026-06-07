@@ -508,6 +508,54 @@ export interface WorkspaceSettings {
   localMcpEnabled?: boolean
   defaultLlmConnection?: string
   enabledSourceSlugs?: string[]
+  finance?: import('../workspaces/types').FinanceWorkspaceConfig
+}
+
+export interface WorkspaceResearchFileEntry {
+  name: string
+  path: string
+  relativePath: string
+  type: 'file' | 'directory'
+  mtimeMs?: number
+  size?: number
+  children?: WorkspaceResearchFileEntry[]
+}
+
+export interface WorkspaceResearchFilesResult {
+  rootPath: string
+  entries: WorkspaceResearchFileEntry[]
+}
+
+export interface WorkspaceKnowledgeSearchResult {
+  title: string
+  path: string
+  relativePath: string
+  snippet: string
+  sourceType: 'content' | 'filename'
+  mtimeMs?: number
+  size?: number
+}
+
+export interface WorkspaceKnowledgeSearchResponse {
+  results: WorkspaceKnowledgeSearchResult[]
+  resultCount: number
+  note?: string
+}
+
+export interface WriteWorkspaceMarkdownResult {
+  ok: boolean
+  mtimeMs: number
+}
+
+export type WorkspaceResearchItemType = 'file' | 'directory'
+
+export interface CreateWorkspaceResearchItemResult {
+  ok: boolean
+  entry: WorkspaceResearchFileEntry
+}
+
+export interface DeleteWorkspaceResearchItemResult {
+  ok: boolean
 }
 
 // ---------------------------------------------------------------------------

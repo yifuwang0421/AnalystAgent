@@ -8,7 +8,7 @@
 import * as React from 'react'
 import { useTranslation } from 'react-i18next'
 import { useAtomValue, useSetAtom } from 'jotai'
-import { AlertCircle, Globe, Copy, RefreshCw, Link2Off, Info } from 'lucide-react'
+import { AlertCircle, Globe, Copy, RefreshCw, Link2Off, Info, History } from 'lucide-react'
 import { ChatDisplay, type ChatDisplayHandle } from '@/components/app-shell/ChatDisplay'
 import { PanelHeader } from '@/components/app-shell/PanelHeader'
 import { SessionMenu } from '@/components/app-shell/SessionMenu'
@@ -21,9 +21,14 @@ import { DropdownMenu, DropdownMenuTrigger } from '@/components/ui/dropdown-menu
 import { StyledDropdownMenuContent, StyledDropdownMenuItem, StyledDropdownMenuSeparator } from '@/components/ui/styled-dropdown'
 import { useAppShellContext, usePendingPermission, usePendingCredential, useSessionOptionsFor, useSession as useSessionData } from '@/context/AppShellContext'
 import { rendererPerf } from '@/lib/perf'
-import { routes } from '@/lib/navigate'
+import { navigate, routes } from '@/lib/navigate'
 import { coerceInputText } from '@/lib/input-text'
 import { deriveSessionMessagesLoadState, formatSessionLoadFailure } from '@/lib/session-load'
+import {
+  addAgentSelectionListener,
+  clearSelectedAgentForSession,
+  getSelectedAgentForSession,
+} from '@/lib/agent-presets'
 import { ensureSessionMessagesLoadedAtom, forceSessionMessagesReloadAtom, loadedSessionsAtom, sessionMetaMapAtom } from '@/atoms/sessions'
 import { getSessionTitle } from '@/utils/session'
 // Model resolution: connection.defaultModel (no hardcoded defaults)
@@ -98,6 +103,20 @@ const ChatPage = React.memo(function ChatPage({ sessionId }: ChatPageProps) {
   // Check if session exists in metadata (for loading state detection)
   const sessionMetaMap = useAtomValue(sessionMetaMapAtom)
   const sessionMeta = sessionMetaMap.get(sessionId)
+  const [selectedAgentPreset, setSelectedAgentPreset] = React.useState(() => getSelectedAgentForSession(sessionId))
+
+  React.useEffect(() => {
+    setSelectedAgentPreset(getSelectedAgentForSession(sessionId))
+    return addAgentSelectionListener((detail) => {
+      if (detail.sessionId === sessionId) {
+        setSelectedAgentPreset(getSelectedAgentForSession(sessionId))
+      }
+    })
+  }, [sessionId])
+
+  const handleClearSelectedAgent = React.useCallback(() => {
+    clearSelectedAgentForSession(sessionId)
+  }, [sessionId])
 
   // Fallback: ensure messages are loaded when session is viewed
   const ensureMessagesLoaded = useSetAtom(ensureSessionMessagesLoadedAtom)
@@ -417,6 +436,13 @@ const ChatPage = React.memo(function ChatPage({ sessionId }: ChatPageProps) {
   // Use isAsyncOperationOngoing for shimmer effect (sharing, updating share, revoking, title regeneration)
   const isAsyncOperationOngoing = session?.isAsyncOperationOngoing || sessionMeta?.isAsyncOperationOngoing || false
 
+  const recentSessions = React.useMemo(() => {
+    return Array.from(sessionMetaMap.values())
+      .filter(meta => !meta.hidden && meta.workspaceId === activeWorkspaceId)
+      .sort((a, b) => (b.lastMessageAt || 0) - (a.lastMessageAt || 0))
+      .slice(0, 12)
+  }, [activeWorkspaceId, sessionMetaMap])
+
   // Rename dialog state
   const [renameDialogOpen, setRenameDialogOpen] = React.useState(false)
   const [renameName, setRenameName] = React.useState('')
@@ -469,7 +495,7 @@ const ChatPage = React.memo(function ChatPage({ sessionId }: ChatPageProps) {
   const handleOpenInNewWindow = React.useCallback(async () => {
     const route = routes.view.allSessions(sessionId)
     const separator = route.includes('?') ? '&' : '?'
-    const url = `analystagent://${route}${separator}window=focused`
+    const url = `craftagents://${route}${separator}window=focused`
     try {
       await window.electronAPI?.openUrl(url)
     } catch (error) {
@@ -558,7 +584,7 @@ const ChatPage = React.memo(function ChatPage({ sessionId }: ChatPageProps) {
               <span className="flex-1">{t('sessionMenu.stopSharing')}</span>
             </StyledDropdownMenuItem>
             <StyledDropdownMenuSeparator />
-            <StyledDropdownMenuItem onClick={() => window.electronAPI.openUrl('https://github.com/yifuwang0421/AnalystAgent')}>
+            <StyledDropdownMenuItem onClick={() => window.electronAPI.openUrl('https://github.com/yifuwang0421/AnalystAgent/tree/main/docs')}>
               <Info className="h-3.5 w-3.5" />
               <span className="flex-1">{t('chat.learnMore')}</span>
             </StyledDropdownMenuItem>
@@ -572,7 +598,7 @@ const ChatPage = React.memo(function ChatPage({ sessionId }: ChatPageProps) {
               <span className="flex-1">{t('chat.shareOnline')}</span>
             </StyledDropdownMenuItem>
             <StyledDropdownMenuSeparator />
-            <StyledDropdownMenuItem onClick={() => window.electronAPI.openUrl('https://github.com/yifuwang0421/AnalystAgent')}>
+            <StyledDropdownMenuItem onClick={() => window.electronAPI.openUrl('https://github.com/yifuwang0421/AnalystAgent/tree/main/docs')}>
               <Info className="h-3.5 w-3.5" />
               <span className="flex-1">{t('chat.learnMore')}</span>
             </StyledDropdownMenuItem>
@@ -581,6 +607,37 @@ const ChatPage = React.memo(function ChatPage({ sessionId }: ChatPageProps) {
       </StyledDropdownMenuContent>
     </DropdownMenu>
   ), [sharedUrl, handleShare, handleOpenInBrowser, handleCopyLink, handleUpdateShare, handleRevokeShare])
+
+  const historyButton = React.useMemo(() => (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <PanelHeaderCenterButton
+          aria-label="历史会话"
+          icon={<History className="h-4 w-4" />}
+        />
+      </DropdownMenuTrigger>
+      <StyledDropdownMenuContent align="end" sideOffset={8} minWidth="min-w-[260px]">
+        <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">历史会话</div>
+        {recentSessions.length === 0 ? (
+          <StyledDropdownMenuItem disabled>
+            <span className="text-muted-foreground">暂无历史会话</span>
+          </StyledDropdownMenuItem>
+        ) : (
+          recentSessions.map(meta => (
+            <StyledDropdownMenuItem
+              key={meta.id}
+              onClick={() => navigate(routes.view.allSessions(meta.id))}
+              className={meta.id === sessionId ? 'bg-foreground/[0.03]' : undefined}
+            >
+              <History className="h-3.5 w-3.5" />
+              <span className="flex-1 min-w-0 truncate">{getSessionTitle(meta)}</span>
+              {meta.hasUnread && <span className="h-1.5 w-1.5 rounded-full bg-accent shrink-0" />}
+            </StyledDropdownMenuItem>
+          ))
+        )}
+      </StyledDropdownMenuContent>
+    </DropdownMenu>
+  ), [recentSessions, sessionId])
 
   const compactInfoButton = React.useMemo(() => {
     if (!isCompactMode || !sessionMeta) return undefined
@@ -600,7 +657,12 @@ const ChatPage = React.memo(function ChatPage({ sessionId }: ChatPageProps) {
     )
   }, [isCompactMode, sessionId, session?.sessionFolderPath, sessionMeta])
 
-  const headerActions = isCompactMode ? compactInfoButton : shareButton
+  const headerActions = isCompactMode ? compactInfoButton : (
+    <div className="flex items-center gap-1">
+      {historyButton}
+      {shareButton}
+    </div>
+  )
 
   // Build title menu content for chat sessions using shared SessionMenu.
   // Desktop uses Radix DropdownMenu via PanelHeader; compact mode uses a
@@ -737,6 +799,8 @@ const ChatPage = React.memo(function ChatPage({ sessionId }: ChatPageProps) {
                 isSearchModeActive={isSearchModeActive}
                 onMatchInfoChange={onChatMatchInfoChange}
                 connectionUnavailable={connectionUnavailable}
+                selectedAgentPreset={selectedAgentPreset}
+                onClearSelectedAgent={handleClearSelectedAgent}
                 compactMode={!!isCompactMode}
                 enableCompactModelPicker={!!isCompactMode}
               />
@@ -775,9 +839,9 @@ const ChatPage = React.memo(function ChatPage({ sessionId }: ChatPageProps) {
           <ChatDisplay
             ref={chatDisplayRef}
             session={session}
-            onSendMessage={(message, attachments, skillSlugs) => {
+            onSendMessage={(message, attachments, skillSlugs, badges) => {
               if (session) {
-                onSendMessage(session.id, message, attachments, skillSlugs)
+                onSendMessage(session.id, message, attachments, skillSlugs, badges)
               }
             }}
             onOpenFile={handleOpenFile}
@@ -817,6 +881,8 @@ const ChatPage = React.memo(function ChatPage({ sessionId }: ChatPageProps) {
             isSearchModeActive={isSearchModeActive}
             onMatchInfoChange={onChatMatchInfoChange}
             connectionUnavailable={connectionUnavailable}
+            selectedAgentPreset={selectedAgentPreset}
+            onClearSelectedAgent={handleClearSelectedAgent}
             compactMode={!!isCompactMode}
             enableCompactModelPicker={!!isCompactMode}
           />

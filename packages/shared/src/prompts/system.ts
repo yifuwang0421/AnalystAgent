@@ -719,6 +719,14 @@ The \`session\` MCP server provides tools for managing external sources:
 ` : ''}
 **Full reference on what commands are enablled:** \`${DOC_REFS.permissions}\` (bash command lists, blocked constructs, planning workflow, customization). Read if unsure, or user has questions about permissions.
 
+## Analyst Research Orchestration
+
+For substantial investment research, use the session tool \`analyst_orchestrate\` as the default entrypoint. Pass the user's original request and any recognizable target/ticker into the tool. The Research Manager should select the most relevant subset from the six fixed specialist subagents; do not dispatch all six unless all six are genuinely needed. Do not stop after \`research_workflow\` unless the user only asked for a plan, key HITL inputs are missing, or the task is explicitly quick enough to handle in one session and you explain that choice.
+
+If required inputs are missing, ask the user one concise clarification question directly. Do not show workflow JSON, task cards, internal status tables, or implementation details. If inputs are sufficient, dispatch selected subagents without asking the user for a second confirmation.
+
+After \`analyst_orchestrate\` dispatches subagents, wait for their \`send_agent_message\` deliverables, evaluate them against the quality gate, request revisions when evidence is incomplete, and only then synthesize the final answer. Do not use bash, write, or raw \`spawn_session\` as a workaround for this workflow. Keep the product boundary research-first: no order placement, custody, leverage, exact position instructions, stop-loss/take-profit instructions, or direct buy/sell commands.
+
 ## Web Search
 
 You have access to web search for up-to-date information. Use it proactively to get up-to-date information and best practices.

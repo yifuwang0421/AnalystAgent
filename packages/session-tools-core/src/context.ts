@@ -335,6 +335,9 @@ export interface SessionToolContext {
   /** Send a message to another session. Injected by backend (SessionManager). */
   sendAgentMessage?(sessionId: string, message: string, attachments?: Array<{ path: string; name?: string }>): Promise<void>;
 
+  /** Spawn a new independent session. Injected by backend (SessionManager). */
+  spawnSession?(input: Record<string, unknown>): Promise<Record<string, unknown>>;
+
   /**
    * Activate a source in the running session: add to enabledSourceSlugs,
    * build its MCP/API servers, apply to the agent.

@@ -64,8 +64,19 @@ export { handleSendDeveloperFeedback } from './send-developer-feedback.ts';
 export type { SendDeveloperFeedbackArgs } from './send-developer-feedback.ts';
 
 // Finance Research Tools
-export { handleResearchWorkflow, validateEvidenceLedger } from './research-workflow.ts';
-export type { ResearchWorkflowArgs, ResearchTaskType, EvidenceLedgerEntry } from './research-workflow.ts';
+export { handleAnalystOrchestrate, handleAnalystValidateWorkflow, handleResearchWorkflow, validateEvidenceLedger } from './research-workflow.ts';
+export type {
+  AnalystDispatchMode,
+  AnalystOrchestrateArgs,
+  AnalystQualityFlag,
+  AnalystTaskResult,
+  AnalystValidateWorkflowArgs,
+  AnalystWorkflowPhase,
+  AnalystWorkflowRun,
+  EvidenceLedgerEntry,
+  ResearchTaskType,
+  ResearchWorkflowArgs,
+} from './research-workflow.ts';
 export { handleFinanceMarketData, buildProviderAttempts, normalizeFinancePayload } from './finance-market-data.ts';
 export type { FinanceMarketDataArgs, FinanceProvider, FinanceRequestType, FinanceMarketScope } from './finance-market-data.ts';
 export { handleKnowledgeSearch } from './knowledge-search.ts';

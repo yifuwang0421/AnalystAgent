@@ -8,6 +8,7 @@ import {
   Square,
   Check,
   DatabaseZap,
+  Bot,
   ChevronDown,
   ChevronUp,
   AlertCircle,
@@ -73,6 +74,7 @@ import { CompactSourceSelector } from '@/components/ui/CompactSourceSelector'
 import { CompactWorkingDirectorySelector } from '@/components/ui/CompactWorkingDirectorySelector'
 import { ConnectionIcon } from '@/components/icons/ConnectionIcon'
 import { FreeFormInputContextBadge } from './FreeFormInputContextBadge'
+import { FadingText } from '@/components/ui/fading-text'
 import { derivePickerMode } from './picker-mode'
 import type { FileAttachment, LoadedSource, LoadedSkill } from '../../../../shared/types'
 import type { PermissionMode } from '@craft-agent/shared/agent/modes'
@@ -96,6 +98,7 @@ import {
   stripPiPrefixForDisplay,
 } from './model-picker-helpers'
 import { useModelVisionToggle } from './useModelVisionToggle'
+import { getPresetIcon, type AgentPreset } from '@/lib/agent-presets'
 
 function formatFollowUpChipText(text: string, fallback: string, maxLength = 50): string {
   const normalized = text.replace(/\s+/g, ' ').trim()
@@ -197,6 +200,10 @@ export interface FreeFormInputProps {
   workingDirectory?: string
   /** Callback when working directory changes */
   onWorkingDirectoryChange?: (path: string) => void
+  /** Selected investment research agent role for this session */
+  selectedAgentPreset?: AgentPreset | null
+  /** Clear the selected investment research agent role */
+  onClearSelectedAgent?: () => void
   /** Session folder path (for "Reset to Session Root" option) */
   sessionFolderPath?: string
   /** Session ID for scoping events like approve-plan */
@@ -294,6 +301,8 @@ export function FreeFormInput({
   workspaceId,
   workingDirectory,
   onWorkingDirectoryChange,
+  selectedAgentPreset,
+  onClearSelectedAgent,
   sessionFolderPath,
   sessionId,
   currentSessionStatus,
@@ -1610,7 +1619,7 @@ export function FreeFormInput({
             `displayLabel`, and `displayLabelKey` reach the popover. The previous
             cherry-pick dropped `inlineExecution: true`, which made the popover
             fall back to the same-window deep-link path; that worked inside
-            Electron but launched the desktop app from the WebUI via `analystagent://`.
+            Electron but launched the desktop app from the WebUI via `craftagents://`.
             Match the AppShell pattern (which already uses spread). */}
         {addLabelEditConfig && (
           <EditPopover
@@ -1799,6 +1808,12 @@ export function FreeFormInput({
               isEmptySession={isEmptySession}
               connectionUnavailable={connectionUnavailable}
               contextStatus={contextStatus}
+            />
+          )}
+          {selectedAgentPreset && (
+            <AgentPresetBadge
+              preset={selectedAgentPreset}
+              onClear={onClearSelectedAgent}
             />
           )}
           <FreeFormInputContextBadge
@@ -2000,6 +2015,12 @@ export function FreeFormInput({
               sessionFolderPath={sessionFolderPath}
               isEmptySession={isEmptySession}
               workspaceId={workspaceId}
+            />
+          )}
+          {selectedAgentPreset && (
+            <AgentPresetBadge
+              preset={selectedAgentPreset}
+              onClear={onClearSelectedAgent}
             />
           )}
           </div>
@@ -2475,6 +2496,45 @@ function formatPathForDisplay(path: string | undefined, homeDir: string): string
       : (relativePath || PATH_SEP)
   }
   return `in ${displayPath}`
+}
+
+function AgentPresetBadge({
+  preset,
+  onClear,
+}: {
+  preset: AgentPreset
+  onClear?: () => void
+}) {
+  const label = preset.titleZh || preset.title
+  const icon = getPresetIcon(preset) || <Bot className="h-4 w-4" />
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          type="button"
+          onClick={onClear}
+          className={cn(
+            "input-toolbar-btn inline-flex items-center gap-1.5 h-7 rounded-[6px] text-[13px] transition-colors select-none shrink min-w-0",
+            "px-2 bg-primary/5 text-primary border border-primary/10 hover:bg-primary/10",
+          )}
+          aria-label={`Agent: ${label}`}
+        >
+          <span className="shrink-0 flex items-center">{icon}</span>
+          <FadingText className="max-w-[140px] min-w-0 shrink" fadeWidth={20}>
+            {label}
+          </FadingText>
+          {onClear && <X className="h-3.5 w-3.5 opacity-60 shrink-0" />}
+        </button>
+      </TooltipTrigger>
+      <TooltipContent side="top">
+        <span className="flex flex-col gap-0.5">
+          <span className="font-medium">投研角色</span>
+          <span className="text-xs opacity-70">{label}</span>
+        </span>
+      </TooltipContent>
+    </Tooltip>
+  )
 }
 
 /**
