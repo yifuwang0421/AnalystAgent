@@ -86,6 +86,29 @@ describe('finance_market_data provider router', () => {
     expect(attempts.map(attempt => attempt.provider)).toEqual(['edgartools', 'yfinance']);
   });
 
+  it('routes US quotes to yfinance before edgartools', () => {
+    writeConfig('global');
+    const attempts = buildProviderAttempts({
+      requestType: 'get_quote',
+      symbol: 'AAPL',
+      marketScope: 'us',
+      provider: 'auto',
+    }, tempDir);
+
+    expect(attempts.map(attempt => attempt.provider)).toEqual(['yfinance', 'edgartools']);
+  });
+
+  it('routes global auto requests through iFinD, CN fallbacks, yfinance, then akshare', () => {
+    writeConfig('global');
+    const attempts = buildProviderAttempts({
+      requestType: 'search_instruments',
+      query: 'semiconductor equipment',
+      provider: 'auto',
+    }, tempDir);
+
+    expect(attempts.map(attempt => attempt.provider)).toEqual(['ifind', 'tushare', 'yfinance', 'akshare']);
+  });
+
   it('returns unified unavailable output when iFinD token is missing', async () => {
     writeConfig('cn-hk');
     const result = await handleFinanceMarketData(ctx(tempDir), {

@@ -133,7 +133,7 @@ interface RuntimeConfigUpdateMessage {
 type InboundMessage =
   | InitMessage
   | { type: 'prompt'; id: string; message: string; systemPrompt: string; images?: Array<{ type: 'image'; data: string; mimeType: string }> }
-  | { type: 'register_tools'; tools: ProxyToolDef[] }
+  | { type: 'register_tools'; id?: string; tools: ProxyToolDef[] }
   | { type: 'tool_execute_response'; requestId: string; result: { content: string; isError: boolean } }
   | { type: 'pre_tool_use_response'; requestId: string; action: 'allow' | 'block' | 'modify'; input?: Record<string, unknown>; reason?: string }
   | { type: 'abort' }
@@ -216,6 +216,7 @@ interface OutboundRuntimeConfigUpdateResult {
   errorMessage?: string;
 }
 interface OutboundSessionIdUpdate { type: 'session_id_update'; sessionId: string }
+interface OutboundToolsRegistered { type: 'tools_registered'; id?: string; count: number; total: number; names: string[] }
 interface OutboundError { type: 'error'; message: string; code?: string }
 
 type OutboundMessage =
@@ -231,6 +232,7 @@ type OutboundMessage =
   | OutboundSetAutoCompactionResult
   | OutboundRuntimeConfigUpdateResult
   | OutboundSessionIdUpdate
+  | OutboundToolsRegistered
   | OutboundError;
 
 // ============================================================
@@ -963,7 +965,9 @@ async function queryLlm(request: LLMQueryRequest): Promise<LLMQueryResult> {
     // assignment to `state.systemPrompt` doesn't survive `session.prompt()`.
     const promptForSession =
       request.systemPrompt ?? 'Reply with ONLY the requested text. No explanation.';
-    applySystemPromptOverride(ephemeralSession, promptForSession);
+    applySystemPromptOverride(ephemeralSession, promptForSession, {
+      preserveRuntimeToolPrompt: false,
+    });
 
     // Collect response text and errors from events
     let result = '';
@@ -1179,7 +1183,8 @@ function handleSessionEvent(event: AgentSessionEvent): void {
           (c) => c.type === 'toolCall' && c.name && isPrefetchableTool(c.name),
         );
         if (prefetchableToolCalls.length >= 2) {
-          debugLog(`Prefetching ${prefetchableToolCalls.length} parallel ${prefetchableToolCalls[0].name} calls`);
+          const firstToolName = prefetchableToolCalls[0]?.name ?? 'proxy tool';
+          debugLog(`Prefetching ${prefetchableToolCalls.length} parallel ${firstToolName} calls`);
           for (const tc of prefetchableToolCalls) {
             const requestId = `prefetch-${tc.id}`;
             const promise = new Promise<{ content: string; isError: boolean }>((resolve) => {
@@ -1363,6 +1368,13 @@ function handleRegisterTools(msg: Extract<InboundMessage, { type: 'register_tool
     ...msg.tools,
   ];
   debugLog(`Registered ${msg.tools.length} proxy tools (total: ${proxyToolDefs.length}): ${msg.tools.map(t => t.name).join(', ')}`);
+  send({
+    type: 'tools_registered',
+    id: msg.id,
+    count: msg.tools.length,
+    total: proxyToolDefs.length,
+    names: msg.tools.map(t => t.name),
+  });
 
   // If session exists, mark for recreation on next prompt.
   // Don't dispose mid-generation — the flag is checked in handlePrompt().

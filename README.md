@@ -75,7 +75,7 @@ The data layer is unified behind session tools and workspace sources:
 
 | Source type | Examples | V1 behavior |
 | --- | --- | --- |
-| MCP / skills | 东方财富妙想, iFinD, Wind, custom MCP servers | Used through configured workspace Sources and finance session tools |
+| MCP / skills | Eastmoney Miaoxiang, iFinD, Wind-style MCP servers, custom MCP servers | Used through configured workspace Sources and finance session tools |
 | APIs | tushare, akshare, yfinance, edgartools, baostock | Routed through `finance_market_data` with normalized warnings and citations |
 | Local knowledge base | `knowledge/`, `companies/`, `industries/`, `reports/` | Searched by `knowledge_search`; future RAG can replace the backend without changing the research contract |
 | Web search | News, filings, policy releases, company pages | Used when current information is needed; outputs must cite URL/source and search date |
@@ -118,6 +118,8 @@ templates/
 ```
 
 Default templates include company deep research, earnings review, event impact, and industry scan. The knowledge base can start as local optimized search and later evolve into RAG as the document set grows.
+
+See [Finance Analyst Workspace](docs/finance-analyst-workspace.md) for the current workspace structure, seeded templates, tool contracts, evidence ledger, data-provider behavior, and research-only policy.
 
 ## Installation
 

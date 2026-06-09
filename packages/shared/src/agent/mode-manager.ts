@@ -16,7 +16,7 @@ import { homedir } from 'os';
 import { existsSync, realpathSync } from 'fs';
 import { debug } from '../utils/debug.ts';
 import { dirname, isAbsolute, relative, resolve } from 'path';
-import { getSessionSafeAllowedToolNames } from '@craft-agent/session-tools-core';
+import { getSessionSafeAllowedToolNames, getSessionToolNames } from '@craft-agent/session-tools-core';
 import { FEATURE_FLAGS } from '../feature-flags.ts';
 import { isBrowserToolNameOrAlias } from './browser-tool-names.ts';
 import type { PermissionsContext, MergedPermissionsConfig } from './permissions-config.ts';
@@ -2011,12 +2011,12 @@ export function shouldAllowToolInMode(
 
     // Handle session-scoped tools - derive safe-mode behavior from canonical session-tools-core metadata
     if (toolName.startsWith('mcp__session__')) {
+      const canonicalSessionToolName = toolName.slice('mcp__session__'.length);
       const safeAllowedSessionTools = getSessionSafeAllowedToolNames({
-        prefix: 'mcp__session__',
         includeDeveloperFeedback: FEATURE_FLAGS.developerFeedback,
       });
 
-      if (safeAllowedSessionTools.has(toolName)) {
+      if (safeAllowedSessionTools.has(canonicalSessionToolName)) {
         return { allowed: true };
       }
 
@@ -2048,6 +2048,21 @@ export function shouldAllowToolInMode(
     return {
       allowed: false,
       reason: `MCP write operations are blocked in ${config.displayName}. Switch to Ask or Allow All mode (${config.shortcutHint}) to make changes.`
+    };
+  }
+
+  if (getSessionToolNames({ includeDeveloperFeedback: FEATURE_FLAGS.developerFeedback }).has(toolName)) {
+    const safeAllowedSessionTools = getSessionSafeAllowedToolNames({
+      includeDeveloperFeedback: FEATURE_FLAGS.developerFeedback,
+    });
+
+    if (safeAllowedSessionTools.has(toolName)) {
+      return { allowed: true };
+    }
+
+    return {
+      allowed: false,
+      reason: `Session configuration changes are blocked in ${config.displayName}. Switch to Ask or Allow All mode (${config.shortcutHint}) to create, update, or delete sources and agents.`
     };
   }
 

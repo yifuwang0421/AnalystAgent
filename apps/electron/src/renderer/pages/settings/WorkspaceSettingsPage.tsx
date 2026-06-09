@@ -649,18 +649,18 @@ export default function WorkspaceSettingsPage() {
 
             {financeConfig && (
               <SettingsSection
-                title="Financial Research"
-                description="Configure the analyst workspace, knowledge base, and first-phase market data provider."
+                title={t("settings.workspace.finance.title")}
+                description={t("settings.workspace.finance.description")}
               >
                 <SettingsCard>
                   <SettingsToggle
-                    label="Finance analyst workspace"
-                    description="Use finance analyst prompts, research folders, knowledge search, and market data tools."
+                    label={t("settings.workspace.finance.enabled")}
+                    description={t("settings.workspace.finance.enabledDesc")}
                     checked={financeConfig.enabled}
                     onCheckedChange={(checked) => handleFinanceConfigChange({ enabled: checked })}
                   />
                   <SettingsRow
-                    label="Research directory"
+                    label={t("settings.workspace.finance.researchDirectory")}
                     description={financeConfig.researchDirectory}
                     action={
                       <button
@@ -673,29 +673,49 @@ export default function WorkspaceSettingsPage() {
                     }
                   />
                   <SettingsMenuSelectRow
-                    label="Market scope"
-                    description="First phase defaults to A-share and Hong Kong research workflows."
+                    label={t("settings.workspace.finance.marketScope")}
+                    description={t("settings.workspace.finance.marketScopeDesc")}
                     value={financeConfig.marketScope}
                     onValueChange={(value) => handleFinanceConfigChange({ marketScope: value as FinanceWorkspaceConfig['marketScope'] })}
                     options={[
-                      { value: 'cn-hk', label: 'A股/港股', description: 'A-share and Hong Kong market research' },
-                      { value: 'us', label: 'US', description: 'US-market research placeholder' },
-                      { value: 'global', label: 'Global', description: 'Multi-market research placeholder' },
+                      {
+                        value: 'cn-hk',
+                        label: t("settings.workspace.finance.marketScopeCnHk"),
+                        description: t("settings.workspace.finance.marketScopeCnHkDesc"),
+                      },
+                      {
+                        value: 'us',
+                        label: t("settings.workspace.finance.marketScopeUs"),
+                        description: t("settings.workspace.finance.marketScopeUsDesc"),
+                      },
+                      {
+                        value: 'global',
+                        label: t("settings.workspace.finance.marketScopeGlobal"),
+                        description: t("settings.workspace.finance.marketScopeGlobalDesc"),
+                      },
                     ]}
                   />
                   <SettingsMenuSelectRow
-                    label="Data provider"
-                    description="The generic provider interface can add more vendors later."
+                    label={t("settings.workspace.finance.dataProvider")}
+                    description={t("settings.workspace.finance.dataProviderDesc")}
                     value={financeConfig.dataProvider}
                     onValueChange={(value) => handleFinanceConfigChange({ dataProvider: value as FinanceWorkspaceConfig['dataProvider'] })}
                     options={[
-                      { value: 'ifind', label: 'iFinD MCP', description: 'Use iFinD stock, fund, and macro MCP servers' },
-                      { value: 'none', label: 'None', description: 'Use knowledge base and uploaded files only' },
+                      {
+                        value: 'ifind',
+                        label: t("settings.workspace.finance.dataProviderIfind"),
+                        description: t("settings.workspace.finance.dataProviderIfindDesc"),
+                      },
+                      {
+                        value: 'none',
+                        label: t("settings.workspace.finance.dataProviderNone"),
+                        description: t("settings.workspace.finance.dataProviderNoneDesc"),
+                      },
                     ]}
                   />
                   <SettingsToggle
-                    label="Reference knowledge base"
-                    description="Allow research sessions to search knowledge, companies, industries, and reports folders."
+                    label={t("settings.workspace.finance.knowledgeBase")}
+                    description={t("settings.workspace.finance.knowledgeBaseDesc")}
                     checked={financeConfig.knowledgeBaseEnabled}
                     onCheckedChange={(checked) => handleFinanceConfigChange({ knowledgeBaseEnabled: checked })}
                   />

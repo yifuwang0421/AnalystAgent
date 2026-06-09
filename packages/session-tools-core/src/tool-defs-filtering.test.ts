@@ -48,11 +48,15 @@ describe('session tool filtering helpers', () => {
     const jsonNames = getToolDefsAsJsonSchema({ prefix: 'mcp__session__' }).map(d => d.name);
 
     expect(names.has('research_workflow')).toBe(true);
+    expect(names.has('analyst_orchestrate')).toBe(true);
     expect(names.has('finance_market_data')).toBe(true);
     expect(names.has('knowledge_search')).toBe(true);
+    expect(names.has('spawn_session')).toBe(true);
     expect(jsonNames).toContain('mcp__session__research_workflow');
+    expect(jsonNames).toContain('mcp__session__analyst_orchestrate');
     expect(jsonNames).toContain('mcp__session__finance_market_data');
     expect(jsonNames).toContain('mcp__session__knowledge_search');
+    expect(jsonNames).toContain('mcp__session__spawn_session');
   });
 
   it('all canonical session tools declare safeMode metadata', () => {
@@ -73,6 +77,7 @@ describe('session tool filtering helpers', () => {
     expect(allowed.has('finance_market_data')).toBe(true);
     expect(allowed.has('knowledge_search')).toBe(true);
 
+    expect(blocked.has('analyst_orchestrate')).toBe(true);
     expect(blocked.has('source_oauth_trigger')).toBe(true);
     expect(blocked.has('source_credential_prompt')).toBe(true);
     expect(blocked.has('spawn_session')).toBe(true);
@@ -85,6 +90,7 @@ describe('session tool filtering helpers', () => {
     expect(allowedPrefixed.has('mcp__session__send_developer_feedback')).toBe(true);
     expect(allowedPrefixed.has('mcp__session__call_llm')).toBe(true);
     expect(allowedPrefixed.has('mcp__session__script_sandbox')).toBe(true);
+    expect(blockedPrefixed.has('mcp__session__analyst_orchestrate')).toBe(true);
     expect(blockedPrefixed.has('mcp__session__source_oauth_trigger')).toBe(true);
     expect(blockedPrefixed.has('mcp__session__spawn_session')).toBe(true);
   });

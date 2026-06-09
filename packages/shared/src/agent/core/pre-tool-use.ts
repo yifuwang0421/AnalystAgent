@@ -789,10 +789,10 @@ export function runPreToolUseChecks(ctx: PreToolUseInput): PreToolUseCheckResult
   // ============================================================
   // 4. CALL_LLM / SPAWN_SESSION INTERCEPTION
   // ============================================================
-  if (toolName === 'mcp__session__call_llm') {
+  if (toolName === 'mcp__session__call_llm' || toolName === 'call_llm') {
     return { type: 'call_llm_intercept', input };
   }
-  if (toolName === 'mcp__session__spawn_session') {
+  if (toolName === 'mcp__session__spawn_session' || toolName === 'spawn_session') {
     return { type: 'spawn_session_intercept', input };
   }
 
